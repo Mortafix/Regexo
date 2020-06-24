@@ -21,6 +21,9 @@ def date_to_key(date_key=None):
 	date_key =  date.today() if not date_key else date.fromisoformat('-'.join(date_key.split('-')[::-1]))
 	return '{:04d}{:02d}{:02d}'.format(date_key.year,date_key.month,date_key.day)
 
+def key_to_date(key):
+	return '{2}.{1}.{0}'.format(key[0:4],key[4:6],key[6:8])
+
 def em(emoji_string):
 	return emojize(':'+emoji_string+':',use_aliases=True)
 
@@ -121,6 +124,13 @@ def complete_challenge(update,context):
 	print(REGEX)
 	return ConversationHandler.END
 
+# LIST REGEX (admin) ---------------------------------
+
+def list_regex(update,context):
+	'''Show regex challenges'''
+	msg = '\n'.join(['\[{}]\n{} {}\n\n{}'.format(key_to_date(k),em('bell'),v[0],'\n'.join(['`{}` {} `{}`'.format(s,em('arrow_forward'),t) for s,t in v[1]])) for k,v in REGEX.items()])
+	update.message.reply_text(msg,parse_mode='Markdown')
+
 # MAIN ----------------------------------------------------------------------------------
 
 def main():
@@ -134,10 +144,11 @@ def main():
     # commands
     cmd_start = CommandHandler("start", start)
     cmd_help = CommandHandler("help", help)
+    cmd_help = CommandHandler("view", list_regex)
 
     # conversations
     conv_new_regex = ConversationHandler(
-    	entry_points = [CommandHandler('newregex',new_regex)],
+    	entry_points = [CommandHandler('regex',new_regex)],
     	states = {
     		ADD_DESCRIPTION: [MessageHandler(Filters.text,add_description)],
     		ADD_TEST: [MessageHandler(Filters.text,add_test)],
