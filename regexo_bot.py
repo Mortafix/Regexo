@@ -24,6 +24,9 @@ def date_to_key(date_key=None):
 def em(emoji_string):
 	return emojize(':'+emoji_string+':',use_aliases=True)
 
+def are_you_admin(telegram_id):
+	return telegram_id in [18528224,]
+
 REGEX = dict()
 
 #--------------------------------- Utilities ------------------------------------------
@@ -59,6 +62,8 @@ def handle_text(update, context):
 
 def new_regex(update,context):
 	'''/newregex - Choose date'''
+	telegram_id = update.message.chat.id
+	if not are_you_admin(telegram_id): update.message.reply_text('{} *STOP NOW*!\nYou arent admin gang auh.'.format(em('no_entry_sign')),parse_mode='Markdown'); return ConversationHandler.END
 	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Today',callback_data='date-today'),InlineKeyboardButton(text='Another Date',callback_data='date-another')]])
 	update.message.reply_text('{} Choose challenge *date*.'.format(em('date')),reply_markup=reply_keyboard,parse_mode='Markdown')
 	return DATE_CHOOSE
