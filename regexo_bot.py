@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 PORT = int(os.environ.get('PORT', 5000))
 # Config variables
 TOKEN = '1178476105:AAEeuMbyRQ5blEM11V0xtqEkiMsDGhnikyU'
-ADD_TEST,NEW_TEST,REGEX_END,ADD_DESCRIPTION,DATE_CHOOSE,LIST = range(6)
+ADD_TEST,NEW_TEST,REGEX_END,ADD_DESCRIPTION,DATE_CHOOSE,LIST_C,LIST_M = range(7)
 
 #--------------------------------- Functions ------------------------------------------
 
@@ -43,6 +43,9 @@ def create_list_keyboard(index,range):
 	result.append(InlineKeyboardButton(text=em('x'),callback_data='list-cancel'))
 	if index-1 in range: result.append(InlineKeyboardButton(text=em('arrow_forward'),callback_data='list-right'))
 	return InlineKeyboardMarkup([result])
+
+def search_index_from_date(regex_list,key_date):
+	return min([(abs(int(key_date)-int(x)),i) for i,x in enumerate(regex_list.keys())])[1]
 
 REGEX = dict()
 
@@ -81,20 +84,9 @@ def new_regex(update,context):
 	'''/newregex - Choose date'''
 	telegram_id = update.message.chat.id
 	if not are_you_admin(telegram_id): update.message.reply_text('{} *STOP NOW*!\nYou arent admin gang auh.'.format(em('no_entry_sign')),parse_mode='Markdown'); return ConversationHandler.END
-	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Today',callback_data='date-today'),InlineKeyboardButton(text='Another Date',callback_data='date-another')]])
+	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Today',callback_data='regex-date-today'),InlineKeyboardButton(text='Another Date',callback_data='regex-date-another')]])
 	update.message.reply_text('{} Choose challenge *date*.'.format(em('date')),reply_markup=reply_keyboard,parse_mode='Markdown')
 	return DATE_CHOOSE
-
-def date_dispatcher(update,context):
-	'''/newregex - Date'''
-	telegram_id = update.callback_query.message.chat.id
-	query = update.callback_query
-	query.answer()
-	if query.data == 'date-today':
-		query.edit_message_text('{} Insert *description*.\n(markdown available)'.format(em('page_facing_up')),parse_mode='Markdown')
-		context.user_data.update({telegram_id:{'regex-date':date_to_key()}})
-		return ADD_TEST
-	elif query.data == 'date-another': query.edit_message_text('Insert *date*.\n\[dd-mm-yyyy]',parse_mode='Markdown'); return ADD_DESCRIPTION
 
 def add_description(update,context):
 	'''/newregex - Add description'''
@@ -138,39 +130,87 @@ def complete_challenge(update,context):
 
 # LIST REGEX (admin) ---------------------------------
 
+def list_request(update,context):
+	'''/newregex - Choose date'''
+	telegram_id = update.message.chat.id
+	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Today',callback_data='list-date-today'),InlineKeyboardButton(text='Another Date',callback_data='list-date-another')]])
+	update.message.reply_text('{} Choose a *challenge* to view.'.format(em('date')),reply_markup=reply_keyboard,parse_mode='Markdown')
+	return DATE_CHOOSE
+
 def list_regex(update,context):
 	'''Show regex challenges'''
-	try:
+	if update.callback_query:
 		telegram_id = update.callback_query.message.chat.id
 		data = context.user_data.get(telegram_id)
-		list_id,list_regex,list_range = data['list-id'],data['list-regex'],data['list-range']
-		query = update.callback_query
-		query.answer()
-		if query.data == 'list-right':
-			context.user_data.get(telegram_id).update({'list-id':list_id-1})
-			reply_keyboard = create_list_keyboard(list_id-1,list_range)
-			msg = print_challenge(list_regex,list_id-1)
-			query.edit_message_text(msg,reply_markup=reply_keyboard,parse_mode='Markdown')
-		elif query.data == 'list-left':
-			context.user_data.get(telegram_id).update({'list-id':list_id+1})
-			reply_keyboard = create_list_keyboard(list_id+1,list_range)
-			msg = print_challenge(list_regex,list_id+1)
-			query.edit_message_text(msg,reply_markup=reply_keyboard,parse_mode='Markdown')
-		elif query.data == 'list-cancel': query.edit_message_text('{} Now you can *PLAY*.'.format(em('video_game')),parse_mode='Markdown'); return ConversationHandler.END
-	except AttributeError:
+		# from TODAY (date choose)
+		if 'list-date' in data:
+			if are_you_admin(telegram_id): regex_past = {k:v for k,v in sorted(REGEX.items(),key=lambda item:item[0],reverse=True)}
+			else: regex_past = {k:v for k,v in sorted(REGEX.items(),key=lambda item:item[0],reverse=True) if int(k) <= int(date_to_key())}
+			list_range = list(range(0,len(regex_past)))
+			if regex_past:
+				idx = search_index_from_date(regex_past,data.get('list-date'))
+				context.user_data.update({telegram_id:{'list-id':idx,'list-regex':regex_past,'list-range':list_range}})
+				reply_markup = create_list_keyboard(idx,list_range)
+				msg = print_challenge(regex_past,idx)
+				ret = LIST_C
+			else: 
+				reply_markup = None
+				msg = '{} No challenges yet. Please rompere i maroni alla direzione.'.format(em('zzz'))
+				ret = ConversationHandler.END
+			update.callback_query.edit_message_text(msg,reply_markup=reply_markup,parse_mode='Markdown')
+			return ret
+		# from InlineKeyboard (list)
+		else:	
+			list_id,list_regex,list_range = data['list-id'],data['list-regex'],data['list-range']
+			query = update.callback_query
+			query.answer()
+			if query.data == 'list-right':
+				context.user_data.get(telegram_id).update({'list-id':list_id-1})
+				reply_keyboard = create_list_keyboard(list_id-1,list_range)
+				msg = print_challenge(list_regex,list_id-1)
+				query.edit_message_text(msg,reply_markup=reply_keyboard,parse_mode='Markdown')
+			elif query.data == 'list-left':
+				context.user_data.get(telegram_id).update({'list-id':list_id+1})
+				reply_keyboard = create_list_keyboard(list_id+1,list_range)
+				msg = print_challenge(list_regex,list_id+1)
+				query.edit_message_text(msg,reply_markup=reply_keyboard,parse_mode='Markdown')
+			elif query.data == 'list-cancel': query.edit_message_text('{} Now you can *PLAY*.'.format(em('video_game')),parse_mode='Markdown'); return ConversationHandler.END
+	# from ANOTHER DATE (date choose)
+	else:
 		telegram_id = update.message.chat.id
+		date = update.message.text
+		try: date_key = date_to_key(date)
+		except ValueError: update.message.reply_text('{} Wrong date!\n\nTry again.\n\[dd-mm-yyyy]'.format(em('x')),parse_mode='Markdown'); return LIST_M
 		if are_you_admin(telegram_id): regex_past = {k:v for k,v in sorted(REGEX.items(),key=lambda item:item[0],reverse=True)}
 		else: regex_past = {k:v for k,v in sorted(REGEX.items(),key=lambda item:item[0],reverse=True) if int(k) <= int(date_to_key())}
 		list_range = list(range(0,len(regex_past)))
-		context.user_data.update({telegram_id:{'list-id':0,'list-regex':regex_past,'list-range':list_range}})
 		if regex_past:
-			reply_markup = create_list_keyboard(0,list_range)
-			msg = print_challenge(regex_past,0)
+			idx = search_index_from_date(regex_past,date_key)
+			context.user_data.update({telegram_id:{'list-id':idx,'list-regex':regex_past,'list-range':list_range}})
+			reply_markup = create_list_keyboard(idx,list_range)
+			msg = print_challenge(regex_past,idx)
+			ret = LIST_C
 		else: 
 			reply_markup = None
 			msg = '{} No challenges yet. Please rompere i maroni alla direzione.'.format(em('zzz'))
+			ret = ConversationHandler.END
 		update.message.reply_text(msg,reply_markup=reply_markup,parse_mode='Markdown')
-		return LIST
+		return ret
+
+# DATE --------------------------------------------------------
+
+def date_dispatcher(update,context):
+	'''Request Date'''
+	telegram_id = update.callback_query.message.chat.id
+	query = update.callback_query
+	query.answer()
+	if query.data == 'regex-date-today':
+		query.edit_message_text('{} Insert *description*.\n(markdown available)'.format(em('page_facing_up')),parse_mode='Markdown')
+		context.user_data.update({telegram_id:{'regex-date':date_to_key()}})
+		return ADD_TEST
+	elif query.data == 'regex-date-another': query.edit_message_text('Insert *date*.\n\[dd-mm-yyyy]',parse_mode='Markdown'); return ADD_DESCRIPTION
+	elif query.data == 'list-date-today': context.user_data.update({telegram_id:{'list-date':date_to_key()}}); return list_regex(update,context)
+	elif query.data == 'list-date-another': query.edit_message_text('Insert *date*.\n\[dd-mm-yyyy]',parse_mode='Markdown'); return LIST_M
 
 # MAIN ----------------------------------------------------------------------------------
 
@@ -202,9 +242,11 @@ def main():
     	)
 
     conv_list = ConversationHandler(
-    	entry_points = [CommandHandler("challenges",list_regex)],
+    	entry_points = [CommandHandler("challenges",list_request)],
     	states = {
-    		LIST: [CallbackQueryHandler(list_regex)]
+    		DATE_CHOOSE: [CallbackQueryHandler(date_dispatcher)],
+    		LIST_C: [CallbackQueryHandler(list_regex)],
+    		LIST_M: [MessageHandler(Filters.text,list_regex)]
     	},
     	fallbacks = [CommandHandler("cancel",cancel)],
     	name='list-conversation',
