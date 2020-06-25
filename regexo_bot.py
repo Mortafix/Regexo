@@ -158,8 +158,9 @@ def list_regex(update,context):
 			query.edit_message_text(msg,reply_markup=reply_keyboard,parse_mode='Markdown')
 		elif query.data == 'list-cancel': query.edit_message_text('{} Now you can *PLAY*.'.format(em('video_game')),parse_mode='Markdown'); return ConversationHandler.END
 	except AttributeError:
-		regex_past = {k:v for k,v in sorted(REGEX.items(),key=lambda item:item[0],reverse=True) if int(k) <= int(date_to_key())} # fare uno per admin e uno per user
 		telegram_id = update.message.chat.id
+		if are_you_admin(telegram_id): regex_past = {k:v for k,v in sorted(REGEX.items(),key=lambda item:item[0],reverse=True)}
+		else: regex_past = {k:v for k,v in sorted(REGEX.items(),key=lambda item:item[0],reverse=True) if int(k) <= int(date_to_key())}
 		list_range = list(range(0,len(regex_past)))
 		context.user_data.update({telegram_id:{'list-id':0,'list-regex':regex_past,'list-range':list_range}})
 		if regex_past:
@@ -184,7 +185,6 @@ def main():
     # commands
     cmd_start = CommandHandler("start", start)
     cmd_help = CommandHandler("help", help)
-    cmd_help = CommandHandler("list", list_regex)
 
     # conversations
     conv_new_regex = ConversationHandler(
@@ -202,7 +202,7 @@ def main():
     	)
 
     conv_list = ConversationHandler(
-    	entry_points = [CommandHandler("list",list_regex)],
+    	entry_points = [CommandHandler("challenges",list_regex)],
     	states = {
     		LIST: [CallbackQueryHandler(list_regex)]
     	},
