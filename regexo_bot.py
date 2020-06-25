@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 PORT = int(os.environ.get('PORT', 5000))
 # Config variables
 TOKEN = '1178476105:AAEeuMbyRQ5blEM11V0xtqEkiMsDGhnikyU'
-ADD_TEST,NEW_TEST,REGEX_END,ADD_DESCRIPTION,DATE_CHOOSE = range(5)
+ADD_TEST,NEW_TEST,REGEX_END,ADD_DESCRIPTION,DATE_CHOOSE,LIST = range(6)
 
 #--------------------------------- Functions ------------------------------------------
 
@@ -29,6 +29,20 @@ def em(emoji_string):
 
 def are_you_admin(telegram_id):
 	return telegram_id in [18528224,]
+
+def print_challenge(regex_list,index):
+	k,(descr,test) = tuple(regex_list.items())[index]
+	return '\[{}]\n{} {}\n\n{}'.format(key_to_date(k),em('bell'),descr,print_tests(test))
+
+def print_tests(test_list):
+	return '\n'.join(['`{}` {} `{}`'.format(s,em('arrow_forward'),t) for s,t in test_list])
+
+def create_list_keyboard(index,range):
+	result = [] 
+	if index+1 in range: result.append(InlineKeyboardButton(text=em('arrow_backward'),callback_data='list-left'))
+	result.append(InlineKeyboardButton(text=em('x'),callback_data='list-cancel'))
+	if index-1 in range: result.append(InlineKeyboardButton(text=em('arrow_forward'),callback_data='list-right'))
+	return InlineKeyboardMarkup([result])
 
 REGEX = dict()
 
@@ -103,7 +117,6 @@ def add_test(update,context):
 		test = tuple(update.message.text.split('\n'))
 		if len(test) != 2: msg = '{} Wrong test format!\n'.format(em('x'))
 		else: REGEX.update({d_key:(REGEX[d_key][0],REGEX[d_key][1]+[test])}); msg = '{} Great! You added a new test!\n'.format(em('white_check_mark'))
-	print(REGEX)
 	update.message.reply_text(msg+'Do you want to add a new *test*?',reply_markup=reply_keyboard,parse_mode='Markdown')
 	return NEW_TEST
 
@@ -121,21 +134,48 @@ def complete_challenge(update,context):
 	query = update.callback_query
 	query.answer()
 	query.edit_message_text('Ho clicacato su {}'.format(query.data))
-	print(REGEX)
 	return ConversationHandler.END
 
 # LIST REGEX (admin) ---------------------------------
 
 def list_regex(update,context):
 	'''Show regex challenges'''
-	msg = '\n'.join(['\[{}]\n{} {}\n\n{}'.format(key_to_date(k),em('bell'),v[0],'\n'.join(['`{}` {} `{}`'.format(s,em('arrow_forward'),t) for s,t in v[1]])) for k,v in REGEX.items()])
-	update.message.reply_text(msg,parse_mode='Markdown')
+	try:
+		telegram_id = update.callback_query.message.chat.id
+		data = context.user_data.get(telegram_id)
+		list_id,list_regex,list_range = data['list-id'],data['list-regex'],data['list-range']
+		query = update.callback_query
+		query.answer()
+		if query.data == 'list-right':
+			context.user_data.get(telegram_id).update({'list-id':list_id-1})
+			reply_keyboard = create_list_keyboard(list_id-1,list_range)
+			msg = print_challenge(list_regex,list_id-1)
+			query.edit_message_text(msg,reply_markup=reply_keyboard,parse_mode='Markdown')
+		elif query.data == 'list-left':
+			context.user_data.get(telegram_id).update({'list-id':list_id+1})
+			reply_keyboard = create_list_keyboard(list_id+1,list_range)
+			msg = print_challenge(list_regex,list_id+1)
+			query.edit_message_text(msg,reply_markup=reply_keyboard,parse_mode='Markdown')
+		elif query.data == 'list-cancel': query.edit_message_text('{} Now you can *PLAY*.'.format(em('video_game')),parse_mode='Markdown'); return ConversationHandler.END
+	except AttributeError:
+		regex_past = {k:v for k,v in sorted(REGEX.items(),key=lambda item:item[0],reverse=True) if int(k) <= int(date_to_key())} # fare uno per admin e uno per user
+		telegram_id = update.message.chat.id
+		list_range = list(range(0,len(regex_past)))
+		context.user_data.update({telegram_id:{'list-id':0,'list-regex':regex_past,'list-range':list_range}})
+		if regex_past:
+			reply_markup = create_list_keyboard(0,list_range)
+			msg = print_challenge(regex_past,0)
+		else: 
+			reply_markup = None
+			msg = '{} No challenges yet. Please rompere i maroni alla direzione.'.format(em('zzz'))
+		update.message.reply_text(msg,reply_markup=reply_markup,parse_mode='Markdown')
+		return LIST
 
 # MAIN ----------------------------------------------------------------------------------
 
 def main():
     '''Bot instance'''
-    pp = PicklePersistence(filename='regexo_persistence')
+    pp = PicklePersistence(filename='rgx_persistence')
     updater = Updater(TOKEN, persistence=pp, use_context=True)
     dp = updater.dispatcher
 
@@ -144,7 +184,7 @@ def main():
     # commands
     cmd_start = CommandHandler("start", start)
     cmd_help = CommandHandler("help", help)
-    cmd_help = CommandHandler("view", list_regex)
+    cmd_help = CommandHandler("list", list_regex)
 
     # conversations
     conv_new_regex = ConversationHandler(
@@ -161,10 +201,21 @@ def main():
     	persistent=True
     	)
 
+    conv_list = ConversationHandler(
+    	entry_points = [CommandHandler("list",list_regex)],
+    	states = {
+    		LIST: [CallbackQueryHandler(list_regex)]
+    	},
+    	fallbacks = [CommandHandler("cancel",cancel)],
+    	name='list-conversation',
+    	persistent=True
+    	)
+
     # -----------------------------------------------------------------------
 
     # handlers - commands and conversations
     dp.add_handler(conv_new_regex)
+    dp.add_handler(conv_list)
     dp.add_handler(cmd_start)
     dp.add_handler(cmd_help)
 
