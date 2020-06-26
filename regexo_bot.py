@@ -4,7 +4,7 @@ from telegram import ParseMode, ReplyKeyboardMarkup, ReplyKeyboardRemove, Inline
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, CallbackQueryHandler, PicklePersistence
 from emoji import emojize
 from datetime import date
-from re import match
+from re import match,search
 
 
 # Enable logging and port
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 PORT = int(os.environ.get('PORT', 5000))
 # Config variables
 TOKEN = '1178476105:AAEeuMbyRQ5blEM11V0xtqEkiMsDGhnikyU'
-ADD_TEST,NEW_TEST,REGEX_END,ADD_DESCRIPTION,DATE_CHOOSE,LIST_C,LIST_M = range(7)
+ADD_TEST,NEW_TEST,ADD_DESCRIPTION,DATE_CHOOSE,LIST_C,LIST_M,PLAY,PLAY_DISPACTHER = range(8)
 
 #--------------------------------- Functions ------------------------------------------
 
@@ -30,22 +30,45 @@ def em(emoji_string):
 def are_you_admin(telegram_id):
 	return telegram_id in [18528224,]
 
-def print_challenge(regex_list,index):
-	k,(descr,test) = tuple(regex_list.items())[index]
-	return '\[{}]\n{} {}\n\n{}'.format(key_to_date(k),em('bell'),descr,print_tests(test))
+# Playing Function ---------------------------
 
-def print_tests(test_list):
-	return '\n'.join(['`{}` {} `{}`'.format(s,em('arrow_forward'),t) for s,t in test_list])
+def print_challenge(regex_list=None,index=None,key=None,number=None):
+	if regex_list: k,(descr,test) = tuple(regex_list.items())[index]
+	else: k,(descr,test) = key,REGEX[key]
+	return '\[{}]\n{} {}\n\n{}'.format(key_to_date(k),em('bell'),descr,print_tests(test,number))
 
-def create_list_keyboard(index,range):
+def print_tests(test_list,number):
+	dots = '\n...' if number and number < len(test_list) else ''
+	return '\n'.join(['`{}` {} `{}`'.format(s,em('arrow_forward'),t) for s,t in test_list[:number]])+dots
+
+def create_list_keyboard(index,range,key):
 	result = [] 
 	if index+1 in range: result.append(InlineKeyboardButton(text=em('arrow_backward'),callback_data='list-left'))
 	result.append(InlineKeyboardButton(text=em('x'),callback_data='list-cancel'))
 	if index-1 in range: result.append(InlineKeyboardButton(text=em('arrow_forward'),callback_data='list-right'))
-	return InlineKeyboardMarkup([result])
+	bottom_line = [InlineKeyboardButton(text='Play'+key,callback_data='play-regex-'+key),InlineKeyboardButton(text='Scoreboard',callback_data='scoreboard-'+key)]
+	return InlineKeyboardMarkup([result,bottom_line])
 
 def search_index_from_date(regex_list,key_date):
 	return min([(abs(int(key_date)-int(x)),i) for i,x in enumerate(regex_list.keys())])[1]
+
+def get_key_from_index(regex_list,index):
+	return tuple(regex_list.items())[index][0]
+
+# REGEX TESTS ----------------
+
+def result_test(regex,test,answer):
+	try: return search(regex,test).group(1) == answer
+	except (AttributeError, IndexError): return False
+
+def test_regex(regex,challenge_key):
+	tests = REGEX[challenge_key][1]
+	result = [result_test(regex,test,answer) for test,answer in tests]
+	printing = ['{} Test {}.'.format(em('white_check_mark'),index) if b else '{} Test {}.'.format(em('no_entry_sign'),index) for index,b in enumerate(result)]
+	score = sum([1 for b in result if b])/len(result)*(104-len(regex))
+	return score,'\n'.join(printing)
+
+# -----------------------------------------
 
 REGEX = dict()
 
@@ -60,16 +83,16 @@ def error(update, context):
 def start(update, context):
     '''Send start message. [command /start]'''
     user = update.message.from_user
-    update.message.reply_text('Welcome {}! !\nI\'m `Regexo, your worst regular expression nightmare.'.format(user.first_name),parse_mode='Markdown')
+    update.message.reply_text('Welcome {}! !\nI\'m `Regexo`, your worst regular expression nightmare.'.format(user.first_name),parse_mode='Markdown')
 
 def help(update, context):
     '''Send help message. [command /help]'''
-    update.message.reply_text('{} Non posso aiutarti, non ne hai bisogno..'.format(emojize(':raised_hand:',use_aliases=True)))
+    update.message.reply_text('{} Help goes brrrr..'.format(emojize(':raised_hand:',use_aliases=True)))
 
 def cancel(update, context):
     '''User cancel conversation, exit gently'''
     user = update.message.from_user
-    update.message.reply_text('Perchè mi abbandoni *{}*? {}'.format(user.first_name,em('sob')),parse_mode='Markdown')
+    update.message.reply_text('Why *{}*? {}'.format(user.first_name,em('sob')),parse_mode='Markdown')
     return ConversationHandler.END
 
 #--------------------------------- Handler --------------------------------------------
@@ -107,28 +130,20 @@ def add_test(update,context):
 	if d_key not in REGEX: REGEX[d_key] = (update.message.text,[])
 	else:
 		test = tuple(update.message.text.split('\n'))
-		if len(test) != 2: msg = '{} Wrong test format!\n'.format(em('x'))
-		else: REGEX.update({d_key:(REGEX[d_key][0],REGEX[d_key][1]+[test])}); msg = '{} Great! You added a new test!\n'.format(em('white_check_mark'))
+		if len(test) != 2: msg = '{} Wrong format!\n\n'.format(em('x'))
+		else: REGEX.update({d_key:(REGEX[d_key][0],REGEX[d_key][1]+[test])}); msg = '{} Test added!\n\n'.format(em('white_check_mark'))
 	update.message.reply_text(msg+'Do you want to add a new *test*?',reply_markup=reply_keyboard,parse_mode='Markdown')
 	return NEW_TEST
 
 def new_test(update,context):
 	'''/newregex - Add test'''
 	query = update.callback_query
+	telegram_id = query.message.chat.id
 	query.answer()
-	reply_keyboard = InlineKeyboardMarkup(	[[InlineKeyboardButton(text='Preview',callback_data='regex-preview'),InlineKeyboardButton(text='Publish',callback_data='regex-publish')],
-											[InlineKeyboardButton(text='Modify',callback_data='regex-modify'),InlineKeyboardButton(text='Remove',callback_data='regex_remove')]])
 	if query.data == 'test-new': query.edit_message_text('{} Add new *test*.\n\nLine 1: `Test string`\nLine 2: `Answer`'.format(em('floppy_disk')),parse_mode='Markdown'); return ADD_TEST
-	elif query.data == 'test-stop': query.edit_message_text('{} Challenge complete!'.format(em('tada')),reply_markup=reply_keyboard,parse_mode='Markdown'); return REGEX_END
+	elif query.data == 'test-stop': query.edit_message_text('{} Challenge added!\n\n{}'.format(em('tada'),print_challenge(key=context.user_data.get(telegram_id).get('regex-date'))),parse_mode='Markdown'); return ConversationHandler.END
 
-def complete_challenge(update,context):
-	'''/newregex - Regex complete'''
-	query = update.callback_query
-	query.answer()
-	query.edit_message_text('Ho clicacato su {}'.format(query.data))
-	return ConversationHandler.END
-
-# LIST REGEX (admin) ---------------------------------
+# LIST REGEX --------------------------------
 
 def list_request(update,context):
 	'''/newregex - Choose date'''
@@ -142,20 +157,32 @@ def list_regex(update,context):
 	if update.callback_query:
 		telegram_id = update.callback_query.message.chat.id
 		data = context.user_data.get(telegram_id)
+		# PLAY Button
+		challenge_key = search(r'(?:play-regex-)(\d+)',update.callback_query.data)
+		scoreboard_key = search(r'(?:scoreboard-)(\d+)',update.callback_query.data)
+		if challenge_key:
+			data.update({'play':challenge_key.group(1),'score':0})
+			keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Preview',callback_data='preview'),InlineKeyboardButton(text='End',callback_data='end')]])
+			update.callback_query.edit_message_text('{} Challenge started!\n\nInsert your *regex*.'.format(em('zap')),reply_markup=keyboard,parse_mode='Markdown'); return PLAY 
+		# SCOREBOARD Button
+		elif scoreboard_key:
+			data.update({'play':scoreboard_key.group(1),'score':0})
+			keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Play',callback_data='play-regex'),InlineKeyboardButton(text='End',callback_data='end')]])
+			update.callback_query.edit_message_text('Ah ah ah Scoreboard?',reply_markup=keyboard); return PLAY_DISPACTHER
 		# from TODAY (date choose)
-		if 'list-date' in data:
+		elif 'list-date' in data:
 			if are_you_admin(telegram_id): regex_past = {k:v for k,v in sorted(REGEX.items(),key=lambda item:item[0],reverse=True)}
 			else: regex_past = {k:v for k,v in sorted(REGEX.items(),key=lambda item:item[0],reverse=True) if int(k) <= int(date_to_key())}
 			list_range = list(range(0,len(regex_past)))
 			if regex_past:
 				idx = search_index_from_date(regex_past,data.get('list-date'))
 				context.user_data.update({telegram_id:{'list-id':idx,'list-regex':regex_past,'list-range':list_range}})
-				reply_markup = create_list_keyboard(idx,list_range)
-				msg = print_challenge(regex_past,idx)
+				reply_markup = create_list_keyboard(idx,list_range,get_key_from_index(regex_past,idx))
+				msg = print_challenge(regex_list=regex_past,index=idx,number=2)
 				ret = LIST_C
 			else: 
 				reply_markup = None
-				msg = '{} No challenges yet. Please rompere i maroni alla direzione.'.format(em('zzz'))
+				msg = '{} No challenges yet.\n_Please rompere i maroni alla direzione_'.format(em('zzz'))
 				ret = ConversationHandler.END
 			update.callback_query.edit_message_text(msg,reply_markup=reply_markup,parse_mode='Markdown')
 			return ret
@@ -163,18 +190,19 @@ def list_regex(update,context):
 		else:	
 			list_id,list_regex,list_range = data['list-id'],data['list-regex'],data['list-range']
 			query = update.callback_query
+			user = query.from_user
 			query.answer()
 			if query.data == 'list-right':
 				context.user_data.get(telegram_id).update({'list-id':list_id-1})
-				reply_keyboard = create_list_keyboard(list_id-1,list_range)
-				msg = print_challenge(list_regex,list_id-1)
+				reply_keyboard = create_list_keyboard(list_id-1,list_range,get_key_from_index(list_regex,list_id-1))
+				msg = print_challenge(regex_list=list_regex,index=list_id-1,number=2)
 				query.edit_message_text(msg,reply_markup=reply_keyboard,parse_mode='Markdown')
 			elif query.data == 'list-left':
 				context.user_data.get(telegram_id).update({'list-id':list_id+1})
-				reply_keyboard = create_list_keyboard(list_id+1,list_range)
-				msg = print_challenge(list_regex,list_id+1)
+				reply_keyboard = create_list_keyboard(list_id+1,list_range,get_key_from_index(list_regex,list_id+1))
+				msg = print_challenge(regex_list=list_regex,index=list_id+1,number=2)
 				query.edit_message_text(msg,reply_markup=reply_keyboard,parse_mode='Markdown')
-			elif query.data == 'list-cancel': query.edit_message_text('{} Now you can *PLAY*.'.format(em('video_game')),parse_mode='Markdown'); return ConversationHandler.END
+			elif query.data == 'list-cancel': query.edit_message_text('{} *{}* goes brrrr!'.format(em('dash'),user.first_name),parse_mode='Markdown'); return ConversationHandler.END
 	# from ANOTHER DATE (date choose)
 	else:
 		telegram_id = update.message.chat.id
@@ -187,15 +215,47 @@ def list_regex(update,context):
 		if regex_past:
 			idx = search_index_from_date(regex_past,date_key)
 			context.user_data.update({telegram_id:{'list-id':idx,'list-regex':regex_past,'list-range':list_range}})
-			reply_markup = create_list_keyboard(idx,list_range)
-			msg = print_challenge(regex_past,idx)
+			reply_markup = create_list_keyboard(idx,list_range,get_key_from_index(regex_past,idx))
+			msg = print_challenge(regex_list=regex_past,index=idx,number=2)
 			ret = LIST_C
 		else: 
 			reply_markup = None
-			msg = '{} No challenges yet. Please rompere i maroni alla direzione.'.format(em('zzz'))
+			msg = '{} No challenges yet.\n_Please rompere i maroni alla direzione_'.format(em('zzz'))
 			ret = ConversationHandler.END
 		update.message.reply_text(msg,reply_markup=reply_markup,parse_mode='Markdown')
 		return ret
+
+# PLAY --------------------------------------------------------
+
+def play_dispatcher(update,context):
+	query = update.callback_query
+	telegram_id = query.message.chat.id
+	score = context.user_data.get(telegram_id).get('score')
+	if query.data == 'play-regex':
+		keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Preview',callback_data='preview'),InlineKeyboardButton(text='End',callback_data='end')]])
+		query.edit_message_text('{} Challenge started!\n\nInsert your *regex*.'.format(em('zap')),reply_markup=keyboard,parse_mode='Markdown')
+		return PLAY
+	elif query.data == 'end': query.edit_message_text('{} Challenge completed!\nScore: *{}*'.format(em('tada'),score),parse_mode='Markdown'); return ConversationHandler.END
+	else: query.edit_message_text('Telegram bot goes bbrrrrrr <3'); return ConversationHandler.END 
+
+def play_challenge(update,context):
+	if update.callback_query:
+		query = update.callback_query
+		telegram_id = update.callback_query.message.chat.id
+		score = context.user_data.get(telegram_id).get('score')
+		challenge_key = context.user_data.get(telegram_id).get('play')
+		keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='End',callback_data='end')]])
+		if query.data == 'preview': query.edit_message_text('{}\n\nInsert your *regex* to play.'.format(print_challenge(key=challenge_key,number=2)),reply_markup=keyboard,parse_mode='Markdown'); return PLAY
+		elif query.data == 'end': query.edit_message_text('{} Challenge completed!\nScore: *{}*'.format(em('tada'),score),parse_mode='Markdown'); return ConversationHandler.END
+	else:
+		telegram_id = update.message.chat.id
+		challenge_key = context.user_data.get(telegram_id).get('play')
+		regex = update.message.text
+		keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Preview',callback_data='preview'),InlineKeyboardButton(text='End',callback_data='end')]])
+		score_regex,tests = test_regex(regex,challenge_key)
+		if score_regex > context.user_data.get(telegram_id).get('score'): context.user_data.get(telegram_id).update({'score':score_regex})
+		score = context.user_data.get(telegram_id).get('score')
+		update.message.reply_text('Regex: `{}`\nMax score: *{:.1f}*\nCurrent score: *{:.1f}*\n\n{}'.format(regex,score,score_regex,tests),reply_markup=keyboard,parse_mode='Markdown'); return PLAY
 
 # DATE --------------------------------------------------------
 
@@ -233,8 +293,7 @@ def main():
     		ADD_DESCRIPTION: [MessageHandler(Filters.text,add_description)],
     		ADD_TEST: [MessageHandler(Filters.text,add_test)],
     		DATE_CHOOSE: [CallbackQueryHandler(date_dispatcher)],
-    		NEW_TEST: [CallbackQueryHandler(new_test)],
-    		REGEX_END: [CallbackQueryHandler(complete_challenge)]
+    		NEW_TEST: [CallbackQueryHandler(new_test)]
     	},
     	fallbacks=[CommandHandler('cancel',cancel)],
     	name='login-conversation',
@@ -246,7 +305,9 @@ def main():
     	states = {
     		DATE_CHOOSE: [CallbackQueryHandler(date_dispatcher)],
     		LIST_C: [CallbackQueryHandler(list_regex)],
-    		LIST_M: [MessageHandler(Filters.text,list_regex)]
+    		LIST_M: [MessageHandler(Filters.text,list_regex)],
+    		PLAY: [MessageHandler(Filters.text,play_challenge),CallbackQueryHandler(play_challenge)],
+    		PLAY_DISPACTHER: [CallbackQueryHandler(play_dispatcher)]
     	},
     	fallbacks = [CommandHandler("cancel",cancel)],
     	name='list-conversation',
