@@ -18,6 +18,7 @@ TOKEN = '1178476105:AAEeuMbyRQ5blEM11V0xtqEkiMsDGhnikyU'
 ADD_TEST,NEW_TEST,ADD_DESCRIPTION,DATE_CHOOSE,LIST_C,LIST_M,PLAY,PLAY_DISPACTHER = range(8)
 # Redis Setup
 REGEX = redis.from_url(os.environ.get("REDIS_URL"))
+#REGEX = redis.Redis(host='localhost', port=6379, db=0) # terminal debugging
 
 #--------------------------------- Functions ------------------------------------------
 
@@ -181,17 +182,22 @@ def list_regex(update,context):
 	if update.callback_query:
 		telegram_id = update.callback_query.message.chat.id
 		data = context.user_data.get(telegram_id)
-		# PLAY Button
+		# callback data
 		challenge_key = search(r'(?:play-regex-)(\d+)',update.callback_query.data)
 		scoreboard_key = search(r'(?:scoreboard-)(\d+)',update.callback_query.data)
-		remove_key = search(r'(?:remove-)(\d+)',update.callback_query.data)
+		remove_key = search(r'(?:remove-)(\d+)',update.callback_query.data) 
+		# PLAY Button
 		if challenge_key:
-			data.update({'play':challenge_key.group(1),'score':0})
+			history = REGEX.hget('u{}'.format(telegram_id),challenge_key.group(1))
+			max_score = float(history.decode().split('@@')[1]) if history else 0
+			data.update({'play':challenge_key.group(1),'score':max_score})
 			keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Preview',callback_data='preview'),InlineKeyboardButton(text='End',callback_data='end')]])
 			update.callback_query.edit_message_text('{} Challenge started!\n\nInsert your *regex*.'.format(em('zap')),reply_markup=keyboard,parse_mode='Markdown'); return PLAY 
 		# SCOREBOARD Button
 		elif scoreboard_key:
-			data.update({'play':scoreboard_key.group(1),'score':0})
+			history = REGEX.hget('u{}'.format(telegram_id),scoreboard_key.group(1))
+			max_score = float(history.decode().split('@@')[1]) if history else 0
+			data.update({'play':scoreboard_key.group(1),'score':max_score})
 			keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Play',callback_data='play-regex'),InlineKeyboardButton(text='End',callback_data='end')]])
 			update.callback_query.edit_message_text('{0} *LEADERBOARD* {0}\n\n{1}'.format(em('trophy'),get_leaderboard(scoreboard_key.group(1))),reply_markup=keyboard,parse_mode='Markdown'); return PLAY_DISPACTHER
 		# REMOVE button
