@@ -6,7 +6,7 @@ from emoji import emojize
 from datetime import date
 from re import match,search
 from re import error as ReError
-from redis import Redis
+import redis
 
 
 # Enable logging and port
