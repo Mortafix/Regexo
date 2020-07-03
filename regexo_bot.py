@@ -364,7 +364,7 @@ def main():
     # start the Bot on Heroku
     #updater.start_polling() # terminal debugging
     updater.start_webhook(listen="0.0.0.0",port=int(PORT),url_path=TOKEN)
-    updater.bot.setWebhook('https://telegram-ecobot.herokuapp.com/'+TOKEN)
+    updater.bot.setWebhook('https://regexo-bot.herokuapp.com/'+TOKEN)
     print('Bot started!')
 
     # Run the bot until you press Ctrl-C
