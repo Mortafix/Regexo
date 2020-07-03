@@ -86,7 +86,7 @@ def get_users():
 	return [k for k in REGEX.keys() if search('u',str(k))]
 
 def get_leaderboard(key):
-	return '\n'.join(['{}: *{}*'.format(REGEX.hget(u,'username').decode(),REGEX.hget(u,key).decode().split('@@')[1]) for u in get_users() if REGEX.hget(u,key)])
+	return '\n'.join(['{}: *{}*'.format(user,score) for user,score in sorted([(REGEX.hget(u,'username').decode(),float(REGEX.hget(u,key).decode().split('@@')[1])) for u in get_users() if REGEX.hget(u,key)])])
 
 #--------------------------------- Utilities ------------------------------------------
 
