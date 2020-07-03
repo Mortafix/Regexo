@@ -17,7 +17,7 @@ PORT = int(os.environ.get('PORT', 5000))
 TOKEN = '1178476105:AAEeuMbyRQ5blEM11V0xtqEkiMsDGhnikyU'
 ADD_TEST,NEW_TEST,ADD_DESCRIPTION,DATE_CHOOSE,LIST_C,LIST_M,PLAY,PLAY_DISPACTHER = range(8)
 # Redis Setup
-REGEX = Redis(host='localhost', port=6379, db=0)
+REGEX = redis.from_url(os.environ.get("REDIS_URL"))
 
 #--------------------------------- Functions ------------------------------------------
 
