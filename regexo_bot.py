@@ -17,8 +17,8 @@ PORT = int(os.environ.get('PORT', 5000))
 TOKEN = '1178476105:AAEeuMbyRQ5blEM11V0xtqEkiMsDGhnikyU'
 ADD_TEST,NEW_TEST,ADD_DESCRIPTION,DATE_CHOOSE,LIST_C,LIST_M,PLAY,PLAY_DISPACTHER = range(8)
 # Redis Setup
-REGEX = redis.from_url(os.environ.get("REDIS_URL"))
-#REGEX = redis.Redis(host='localhost', port=6379, db=0) # terminal debugging
+#REGEX = redis.from_url(os.environ.get("REDIS_URL"))
+REGEX = redis.Redis(host='localhost', port=6379, db=0) # terminal debugging
 
 #--------------------------------- Functions ------------------------------------------
 
@@ -101,7 +101,8 @@ def start(update, context):
     '''Send start message. [command /start]'''
     user = update.message.from_user
     telegram_id = update.message.chat.id
-    REGEX.hset('u{}'.format(telegram_id),'username',update.message.from_user.username)
+    db_name = update.message.from_user.username if update.message.from_user.username else user
+    REGEX.hset('u{}'.format(telegram_id),'username',db_name)
     update.message.reply_text('Welcome {}!\nI\'m `Regexo`, your worst regular expression nightmare.'.format(user.first_name),parse_mode='Markdown')
 
 def help(update, context):
@@ -368,9 +369,9 @@ def main():
     # -----------------------------------------------------------------------
 
     # start the Bot on Heroku
-    #updater.start_polling() # terminal debugging
-    updater.start_webhook(listen="0.0.0.0",port=int(PORT),url_path=TOKEN)
-    updater.bot.setWebhook('https://regexo-bot.herokuapp.com/'+TOKEN)
+    updater.start_polling() # terminal debugging
+    #updater.start_webhook(listen="0.0.0.0",port=int(PORT),url_path=TOKEN)
+    #updater.bot.setWebhook('https://regexo-bot.herokuapp.com/'+TOKEN)
     print('Bot started!')
 
     # Run the bot until you press Ctrl-C
