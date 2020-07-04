@@ -328,7 +328,7 @@ def get_challenge_from_file(update,context):
 	# parser
 	try: date_key = date_to_key(lines[0])
 	except ValueError: update.message.reply_text('{} Please check *date* format in file.\nMust be [dd-mm-yyy]'.format(em('no_entry')),parse_mode='Markdown'); return ConversationHandler.END
-	if challenge_exists(date_to_key()): update.message.reply_text('{} Challenge already exists on this date.'.format(em('no_entry'))); return ConversationHandler.END
+	if challenge_exists(date_key): update.message.reply_text('{} Challenge already exists on this date.'.format(em('no_entry'))); return ConversationHandler.END
 	descr = lines[1]
 	test = [l for l in lines[2:] if l]
 	if len(test) % 2 != 0: update.message.reply_text('{} Please check *tests*.\nMust be two lines for each test.'.format(em('no_entry')),parse_mode='Markdown'); return ConversationHandler.END
