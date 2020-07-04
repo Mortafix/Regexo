@@ -57,7 +57,7 @@ def create_list_keyboard(index,range,key,admin=False):
 	if index+1 in range: result.append(InlineKeyboardButton(text=em('arrow_backward'),callback_data='list-left'))
 	result.append(InlineKeyboardButton(text=em('x'),callback_data='list-cancel'))
 	if index-1 in range: result.append(InlineKeyboardButton(text=em('arrow_forward'),callback_data='list-right'))
-	bottom_line = [InlineKeyboardButton(text='Play',callback_data='play-regex-'+key),InlineKeyboardButton(text='Scoreboard',callback_data='scoreboard-'+key)]
+	bottom_line = [InlineKeyboardButton(text='Play',callback_data='play-regex-'+key),InlineKeyboardButton(text='Leaderboard',callback_data='scoreboard-'+key)]
 	admin_line = [InlineKeyboardButton(text='Remove',callback_data='remove-'+key)] if admin else []
 	return InlineKeyboardMarkup([result,bottom_line,admin_line])
 
@@ -199,7 +199,7 @@ def list_regex(update,context):
 			history = REGEX.hget('u{}'.format(telegram_id),scoreboard_key.group(1))
 			max_score = float(history.decode().split('@@')[1]) if history else 0
 			data.update({'play':scoreboard_key.group(1),'score':max_score})
-			keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Play',callback_data='play-regex'),InlineKeyboardButton(text='End',callback_data='end')]])
+			keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Play',callback_data='play-regex'),InlineKeyboardButton(text='End',callback_data='end')],[InlineKeyboardButton(text='Back',callback_data='back')]])
 			update.callback_query.edit_message_text('{0} *LEADERBOARD* {0}\n\n{1}'.format(em('trophy'),get_leaderboard(scoreboard_key.group(1))),reply_markup=keyboard,parse_mode='Markdown'); return PLAY_DISPACTHER
 		# REMOVE button
 		elif remove_key:
@@ -238,6 +238,11 @@ def list_regex(update,context):
 				reply_keyboard = create_list_keyboard(list_id+1,list_range,list_regex[list_id+1],admin=are_you_admin(telegram_id))
 				msg = print_challenge(regex_list=list_regex,index=list_id+1,number=2,usr_id=telegram_id)
 				query.edit_message_text(msg,reply_markup=reply_keyboard,parse_mode='Markdown')
+			elif query.data == 'back':
+				context.user_data.get(telegram_id).update({'list-id':list_id})
+				reply_keyboard = create_list_keyboard(list_id,list_range,list_regex[list_id],admin=are_you_admin(telegram_id))
+				msg = print_challenge(regex_list=list_regex,index=list_id,number=2,usr_id=telegram_id)
+				query.edit_message_text(msg,reply_markup=reply_keyboard,parse_mode='Markdown')
 			elif query.data == 'list-cancel': query.edit_message_text('{} *{}* goes brrrr!'.format(em('dash'),user.first_name),parse_mode='Markdown'); return ConversationHandler.END
 	# from ANOTHER DATE (date choose)
 	else:
@@ -271,6 +276,7 @@ def play_dispatcher(update,context):
 		keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Preview',callback_data='preview'),InlineKeyboardButton(text='End',callback_data='end')]])
 		query.edit_message_text('{} Challenge started!\n\nInsert your *regex*.'.format(em('zap')),reply_markup=keyboard,parse_mode='Markdown')
 		return PLAY
+	elif query.data == 'back': list_regex(update,context); return LIST_C
 	elif query.data == 'end': query.edit_message_text('{} Challenge completed!\nScore: *{}*'.format(em('tada'),score),parse_mode='Markdown'); return ConversationHandler.END
 	else: query.edit_message_text('Telegram bot goes bbrrrrrr <3'); return ConversationHandler.END 
 
