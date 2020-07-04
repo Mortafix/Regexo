@@ -37,6 +37,9 @@ def em(emoji_string):
 def are_you_admin(telegram_id):
 	return telegram_id in [18528224,]
 
+def challenge_exists(key):
+	return key in REGEX
+
 # Playing function ---------------------------
 
 def print_challenge(regex_list=None,index=None,key=None,number=None,usr_id=None):
@@ -139,6 +142,7 @@ def add_description(update,context):
 	date = update.message.text
 	try: date_key = date_to_key(date)
 	except ValueError: update.message.reply_text('{} Wrong date!\n\nTry again.\n\[dd-mm-yyyy]'.format(em('x')),parse_mode='Markdown'); return ADD_DESCRIPTION
+	if challenge_exists(date_key): query.edit_message_text('{} Challenge already exists on this date.'.format(em('no_entry'))); return ConversationHandler.END
 	context.user_data.update({telegram_id:{'regex-date':date_key,'index-test':1}})
 	update.message.reply_text('{} Insert *description*.\n(markdown available)'.format(em('page_facing_up')),parse_mode='Markdown')
 	return ADD_TEST
@@ -309,10 +313,11 @@ def get_challenge_from_file(update,context):
 	lines = open(file,'r').read().split('\n')
 	# parser
 	try: date_key = date_to_key(lines[0])
-	except ValueError: update.message.reply_text('{} Please check date format in file.\nMust be [dd-mm-yyy]'.format(em('no_entry'))); return ConversationHandler.END
+	except ValueError: update.message.reply_text('{} Please check *date* format in file.\nMust be [dd-mm-yyy]'.format(em('no_entry')),parse_mode='Markdown'); return ConversationHandler.END
+	if challenge_exists(date_to_key()): update.message.reply_text('{} Challenge already exists on this date.'.format(em('no_entry'))); return ConversationHandler.END
 	descr = lines[1]
 	test = [l for l in lines[2:] if l]
-	if len(test) % 2 != 0: update.message.reply_text('{} Please check tests.\nMust be two lines for each test.'.format(em('no_entry'))); return ConversationHandler.END
+	if len(test) % 2 != 0: update.message.reply_text('{} Please check *tests*.\nMust be two lines for each test.'.format(em('no_entry')),parse_mode='Markdown'); return ConversationHandler.END
 	REGEX.hset(date_key,'descr',descr)
 	for i,t in enumerate(test):
 		if not i%2: REGEX.hset(date_key,'test{}'.format(i//2+1),'{}\n{}'.format(t,test[i+1])) 
@@ -327,6 +332,7 @@ def date_dispatcher(update,context):
 	query = update.callback_query
 	query.answer()
 	if query.data == 'regex-date-today':
+		if challenge_exists(date_to_key()): query.edit_message_text('{} Challenge already exists on this date.'.format(em('no_entry'))); return ConversationHandler.END
 		query.edit_message_text('{} Insert *description*.\n(markdown available)'.format(em('page_facing_up')),parse_mode='Markdown')
 		context.user_data.update({telegram_id:{'regex-date':date_to_key(),'index-test':1}})
 		return ADD_TEST
