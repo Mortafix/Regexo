@@ -57,7 +57,7 @@ def are_you_alive(telegram_id,user):
 def print_challenge(regex_list=None,index=None,key=None,number=None,usr_id=None):
 	if regex_list: key = regex_list[index]
 	descr = REGEX.hget(key,'descr').decode()
-	test = [REGEX.hget(key,k).decode().split('\n') for k in REGEX.hkeys(key) if search(r'test',str(k))]
+	test = [REGEX.hget(key,k).decode().split('\n') for k in sorted(REGEX.hkeys(key)) if search(r'test',str(k))]
 	k = key
 	player_score = REGEX.hget('u{}'.format(usr_id),key)
 	player = '\n\n{} Played!\nPoints: *{}*'.format(em('tada'),player_score.decode().split('@@')[1]) if player_score else ''
@@ -65,7 +65,7 @@ def print_challenge(regex_list=None,index=None,key=None,number=None,usr_id=None)
 
 def print_tests(test_list,number):
 	dots = '\n...' if number and number < len(test_list) else ''
-	return '\n'.join(['`{}` {} `{}`'.format(s,em('arrow_forward'),t) for s,t in test_list[:number]])+dots
+	return '\n'.join(['`{}` {} `{}`'.format(s,em('arrow_forward'),t.replace('@@','')) for s,t in test_list[:number]])+dots
 
 def create_list_keyboard(index,range,key,admin=False):
 	result,key = [],str(key) 
@@ -87,7 +87,7 @@ def delete_challenge(key):
 
 def result_test(regex,test,answer):
 	try: return search(regex,test).group(1) == answer
-	except (AttributeError, IndexError, ReError): return False
+	except (AttributeError, IndexError, ReError): return answer == '@@'
 
 def test_regex(regex,challenge_key):
 	tests = [REGEX.hget(challenge_key,k).decode().split('\n') for k in REGEX.hkeys(challenge_key) if search(r'test',str(k))]
