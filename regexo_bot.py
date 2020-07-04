@@ -27,7 +27,7 @@ REGEX = redis.from_url(os.environ.get("REDIS_URL"))
 def debug_redis(update,context):
 	telegram_id = update.message.chat.id
 	if are_you_admin(telegram_id):
-		msg = '\n\n'.join(['{}\n{}'.format(k.decode(),'\n'.join(['{}: {}'.format(key.decode(),REGEX.hget(k,key).decode().replace('\n',' > ')) for key in REGEX.hkeys(k)])) for k in sorted(REGEX.keys())])
+		msg = '\n\n'.join(['{}\n{}'.format(k.decode(),'\n'.join(['{}: {}'.format(key.decode(),REGEX.hget(k,key).decode().replace('\n',' > ')) for key in sorted(REGEX.hkeys(k))])) for k in sorted(REGEX.keys())])
 		with open('debug.txt','w') as f: f.write(msg)
 		update.message.reply_document(document=open('debug.txt', 'rb'))
 
