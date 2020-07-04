@@ -60,7 +60,7 @@ def print_challenge(regex_list=None,index=None,key=None,number=None,usr_id=None)
 	test = [REGEX.hget(key,k).decode().split('\n') for k in sorted(REGEX.hkeys(key)) if search(r'test',str(k))]
 	k = key
 	player_score = REGEX.hget('u{}'.format(usr_id),key)
-	player = '\n\n{} Played!\nPoints: *{}*'.format(em('tada'),player_score.decode().split('@@')[1]) if player_score else ''
+	player = '\n\n{} Played!\nPoints: *{}*\nRegex: `{}`'.format(em('tada'),player_score.decode().split('@@')[1],player_score.decode().split('@@')[0]) if player_score else ''
 	return '\[{}]\n{} {}\n\n{}{}'.format(key_to_date(str(k)),em('bell'),descr,print_tests(test,number),player)
 
 def print_tests(test_list,number):
@@ -92,7 +92,7 @@ def result_test(regex,test,answer):
 def test_regex(regex,challenge_key):
 	tests = [REGEX.hget(challenge_key,k).decode().split('\n') for k in REGEX.hkeys(challenge_key) if search(r'test',str(k))]
 	result = [result_test(regex,test,answer) for test,answer in tests]
-	printing = ['{} Test {}.'.format(em('white_check_mark'),index) if b else '{} Test {}.'.format(em('no_entry_sign'),index) for index,b in enumerate(result)]
+	printing = ['{} _Test {}_'.format(em('white_check_mark'),index) if b else '{} Test {}.'.format(em('no_entry_sign'),index) for index,b in enumerate(result)]
 	score = sum([1 for b in result if b])/len(result)*(104-len(regex))
 	return round(score,1),'\n'.join(printing)
 
