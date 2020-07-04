@@ -25,9 +25,11 @@ REGEX = redis.from_url(os.environ.get("REDIS_URL"))
 # Base function ---------------------------
 
 def debug_redis(update,context):
-	if are_you_admin(update.message.chat.id):
-		msg = '\n\n'.join(['*{}*\n{}'.format(k.decode(),'\n'.join(['`{}`: {}'.format(key.decode(),REGEX.hget(k,key).decode().replace('\n',', ')) for key in REGEX.hkeys(k)])) for k in sorted(REGEX.keys())])
-		print(msg)
+	telegram_id = update.message.chat.id
+	if are_you_admin(telegram_id):
+		msg = '\n\n'.join(['{}\n{}'.format(k.decode(),'\n'.join(['{}: {}'.format(key.decode(),REGEX.hget(k,key).decode().replace('\n',' > ')) for key in REGEX.hkeys(k)])) for k in sorted(REGEX.keys())])
+		with open('debug.txt','w') as f: f.write(msg)
+		update.message.reply_document(document=open('debug.txt', 'rb'))
 
 def date_to_key(date_key=None):
 	date_key =  date.today() if not date_key else date.fromisoformat('-'.join(date_key.split('-')[::-1]))
@@ -47,8 +49,7 @@ def challenge_exists(key):
 
 def are_you_alive(telegram_id,user):
 	if 'u{}'.format(telegram_id) not in get_users():
-		user = update.message.from_user
-		db_name = update.message.from_user.username if update.message.from_user.username else user
+		db_name = user.username if user.username else user.first_name
 		REGEX.hset('u{}'.format(telegram_id),'username',db_name)
 
 # Playing function ---------------------------
@@ -115,7 +116,7 @@ def start(update, context):
     '''Send start message. [command /start]'''
     user = update.message.from_user
     telegram_id = update.message.chat.id
-    db_name = update.message.from_user.username if update.message.from_user.username else user
+    db_name = update.message.from_user.username if update.message.from_user.username else user.first_name
     REGEX.hset('u{}'.format(telegram_id),'username',db_name)
     update.message.reply_text('Welcome {}!\nI\'m `Regexo`, your worst regular expression nightmare.'.format(user.first_name),parse_mode='Markdown')
 
