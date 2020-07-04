@@ -128,7 +128,7 @@ def handle_text(update, context):
 def new_regex(update,context):
 	'''/newregex - Choose date'''
 	telegram_id = update.message.chat.id
-	if not are_you_admin(telegram_id): update.message.reply_text('{} *STOP NOW*!\nYou arent admin gang auh.'.format(em('no_entry_sign')),parse_mode='Markdown'); return ConversationHandler.END
+	if not are_you_admin(telegram_id): update.message.reply_text('{} *STOP NOW*!\nYou aren\'t Admin Gang auh.'.format(em('no_entry_sign')),parse_mode='Markdown'); return ConversationHandler.END
 	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Today',callback_data='regex-date-today'),InlineKeyboardButton(text='Another Date',callback_data='regex-date-another')]])
 	update.message.reply_text('{} Choose challenge *date*.'.format(em('date')),reply_markup=reply_keyboard,parse_mode='Markdown')
 	return DATE_CHOOSE
@@ -301,6 +301,24 @@ def play_challenge(update,context):
 		score = context.user_data.get(telegram_id).get('score')
 		update.message.reply_text('Regex: `{}`\nMax score: *{}*\nCurrent score: *{}*\n\n{}'.format(regex,score,score_regex,tests),reply_markup=keyboard,parse_mode='Markdown'); return PLAY
 
+# FILE --------------------------------------------------------
+
+def get_challenge_from_file(update,context):
+	telegram_id = update.message.chat.id
+	file = context.bot.get_file(update.message.document).download()
+	lines = open(file,'r').read().split('\n')
+	# parser
+	try: date_key = date_to_key(lines[0])
+	except ValueError: update.message.reply_text('{} Please check date format in file.\nMust be [dd-mm-yyy]'.format(em('no_entry'))); return ConversationHandler.END
+	descr = lines[1]
+	test = [l for l in lines[2:] if l]
+	if len(test) % 2 != 0: update.message.reply_text('{} Please check tests.\nMust be two lines for each test.'.format(em('no_entry'))); return ConversationHandler.END
+	REGEX.hset(date_key,'descr',descr)
+	for i,t in enumerate(test):
+		if not i%2: REGEX.hset(date_key,'test{}'.format(i//2+1),'{}\n{}'.format(t,test[i+1])) 
+	update.message.reply_text('{} Challenge added!\n\n{}'.format(em('tada'),print_challenge(key=date_key,usr_id=telegram_id)),parse_mode='Markdown')
+	return ConversationHandler.END
+
 # DATE --------------------------------------------------------
 
 def date_dispatcher(update,context):
@@ -336,7 +354,7 @@ def main():
     	states = {
     		ADD_DESCRIPTION: [MessageHandler(Filters.text,add_description)],
     		ADD_TEST: [MessageHandler(Filters.text,add_test)],
-    		DATE_CHOOSE: [CallbackQueryHandler(date_dispatcher)],
+    		DATE_CHOOSE: [CallbackQueryHandler(date_dispatcher),MessageHandler(Filters.document,get_challenge_from_file)],
     		NEW_TEST: [CallbackQueryHandler(new_test)]
     	},
     	fallbacks=[CommandHandler('cancel',cancel)],
