@@ -17,8 +17,8 @@ PORT = int(os.environ.get('PORT', 5000))
 TOKEN = '1178476105:AAEeuMbyRQ5blEM11V0xtqEkiMsDGhnikyU'
 ADD_TEST,NEW_TEST,ADD_DESCRIPTION,DATE_CHOOSE,LIST_C,LIST_M,PLAY,PLAY_DISPACTHER = range(8)
 # Redis Setup
-#REGEX = redis.from_url(os.environ.get("REDIS_URL"))
-REGEX = redis.Redis(host='localhost', port=6379, db=0) # terminal debugging
+REGEX = redis.from_url(os.environ.get("REDIS_URL"))
+#REGEX = redis.Redis(host='localhost', port=6379, db=0) # terminal debugging
 
 #--------------------------------- Functions ------------------------------------------
 
@@ -399,9 +399,9 @@ def main():
     # -----------------------------------------------------------------------
 
     # start the Bot on Heroku
-    updater.start_polling() # terminal debugging
-    #updater.start_webhook(listen="0.0.0.0",port=int(PORT),url_path=TOKEN)
-    #updater.bot.setWebhook('https://regexo-bot.herokuapp.com/'+TOKEN)
+    #updater.start_polling() # terminal debugging
+    updater.start_webhook(listen="0.0.0.0",port=int(PORT),url_path=TOKEN)
+    updater.bot.setWebhook('https://regexo-bot.herokuapp.com/'+TOKEN)
     print('Bot started!')
 
     # Run the bot until you press Ctrl-C
