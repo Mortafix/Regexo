@@ -92,7 +92,7 @@ def result_test(regex,test,answer):
 def test_regex(regex,challenge_key):
 	tests = [REGEX.hget(challenge_key,k).decode().split('\n') for k in sorted(REGEX.hkeys(challenge_key)) if search(r'test',str(k))]
 	result = [result_test(regex,test,answer) for test,answer in tests]
-	printing = ['{} _Test {}_'.format(em('white_check_mark'),index) if b else '{} _Test {}_'.format(em('no_entry_sign'),index) for index,b in enumerate(result)]
+	printing = ['{} _Test {}_'.format(em('white_check_mark'),index+1) if b else '{} _Test {}_'.format(em('no_entry_sign'),index+1) for index,b in enumerate(result)]
 	score = sum([1 for b in result if b])/len(result)*(104-len(regex))
 	return round(score,1),'\n'.join(printing)
 
@@ -172,7 +172,7 @@ def add_test(update,context):
 		if len(test) != 2: msg = '{} Wrong format!\n\n'.format(em('x'))
 		else:
 			idx = context.user_data.get(telegram_id).get('index-test')
-			REGEX.hset(d_key,'test{}'.format(idx),update.message.text)
+			REGEX.hset(d_key,'test{:02d}'.format(idx),update.message.text)
 			context.user_data.get(telegram_id).update({'index-test':idx+1})
 			msg = '{} Test added!\n\n'.format(em('white_check_mark'))
 	update.message.reply_text(msg+'Do you want to add a new *test*?',reply_markup=reply_keyboard,parse_mode='Markdown')
@@ -334,7 +334,7 @@ def get_challenge_from_file(update,context):
 	if len(test) % 2 != 0: update.message.reply_text('{} Please check *tests*.\nMust be two lines for each test.'.format(em('no_entry')),parse_mode='Markdown'); return ConversationHandler.END
 	REGEX.hset(date_key,'descr',descr)
 	for i,t in enumerate(test):
-		if not i%2: REGEX.hset(date_key,'test{}'.format(i//2+1),'{}\n{}'.format(t,test[i+1])) 
+		if not i%2: REGEX.hset(date_key,'test{:02d}'.format(i//2+1),'{}\n{}'.format(t,test[i+1])) 
 	update.message.reply_text('{} Challenge added!\n\n{}'.format(em('tada'),print_challenge(key=date_key,usr_id=telegram_id)),parse_mode='Markdown')
 	return ConversationHandler.END
 
