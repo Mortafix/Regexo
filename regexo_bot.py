@@ -24,6 +24,11 @@ REGEX = redis.from_url(os.environ.get("REDIS_URL"))
 
 # Base function ---------------------------
 
+def debug_redis(update,context):
+	if are_you_admin(update.message.chat.id):
+		msg = '\n\n'.join(['*{}*\n{}'.format(k.decode(),'\n'.join(['`{}`: {}'.format(key.decode(),REGEX.hget(k,key).decode().replace('\n',', ')) for key in REGEX.hkeys(k)])) for k in sorted(REGEX.keys())])
+		print(msg)
+
 def date_to_key(date_key=None):
 	date_key =  date.today() if not date_key else date.fromisoformat('-'.join(date_key.split('-')[::-1]))
 	return int('{:04d}{:02d}{:02d}'.format(date_key.year,date_key.month,date_key.day))
@@ -39,6 +44,12 @@ def are_you_admin(telegram_id):
 
 def challenge_exists(key):
 	return key in REGEX
+
+def are_you_alive(telegram_id,user):
+	if 'u{}'.format(telegram_id) not in get_users():
+		user = update.message.from_user
+		db_name = update.message.from_user.username if update.message.from_user.username else user
+		REGEX.hset('u{}'.format(telegram_id),'username',db_name)
 
 # Playing function ---------------------------
 
@@ -131,6 +142,7 @@ def handle_text(update, context):
 def new_regex(update,context):
 	'''/newregex - Choose date'''
 	telegram_id = update.message.chat.id
+	are_you_alive(telegram_id,update.message.from_user)
 	if not are_you_admin(telegram_id): update.message.reply_text('{} *STOP NOW*!\nYou aren\'t Admin Gang auh.'.format(em('no_entry_sign')),parse_mode='Markdown'); return ConversationHandler.END
 	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Today',callback_data='regex-date-today'),InlineKeyboardButton(text='Another Date',callback_data='regex-date-another')]])
 	update.message.reply_text('{} Choose challenge *date*.'.format(em('date')),reply_markup=reply_keyboard,parse_mode='Markdown')
@@ -178,6 +190,7 @@ def new_test(update,context):
 def list_request(update,context):
 	'''/newregex - Choose date'''
 	telegram_id = update.message.chat.id
+	are_you_alive(telegram_id,update.message.from_user)
 	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Today',callback_data='list-date-today'),InlineKeyboardButton(text='Another Date',callback_data='list-date-another')]])
 	update.message.reply_text('{} Choose a *challenge* to view.'.format(em('date')),reply_markup=reply_keyboard,parse_mode='Markdown')
 	return DATE_CHOOSE
@@ -353,6 +366,7 @@ def main():
     # commands
     cmd_start = CommandHandler("start", start)
     cmd_help = CommandHandler("help", help)
+    cmd_debug = CommandHandler("debug",debug_redis)
 
     # conversations
     conv_new_regex = ConversationHandler(
@@ -389,6 +403,7 @@ def main():
     dp.add_handler(conv_list)
     dp.add_handler(cmd_start)
     dp.add_handler(cmd_help)
+    dp.add_handler(cmd_debug)
 
     # handlers - no command
     dp.add_handler(MessageHandler(Filters.text,handle_text))
