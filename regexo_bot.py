@@ -86,19 +86,32 @@ def delete_challenge(key):
 
 # Testing functions ----------------
 
-def result_test(regex,test,answer):
-	try: return search(regex,test).group(1) == answer
+def result_test(regex,test,answer=None,result=False):
+	try:
+		if result: return search(regex,test)
+		return search(regex,test).group(1) == answer
 	except (ReError, IndexError): return False
 	except AttributeError: return answer == '@@'
+
+def print_explicit_test(regex_matched,answer):
+	msg = '`Full match `'
+	end = '`Expected   ` *{}*'.format(answer)
+	if not regex_matched: return '{}\n{}'.format(msg,end)
+	groups = regex_matched.groups()
+	if not groups: return '{} *{}*\n{}'.format(msg,regex_matched.group(0),end)
+	return '{} *{}*\n`Group1`            *{}*\n{}'.format(msg,regex_matched.group(0),groups[0],end)
 
 def test_regex(regex,challenge_key):
 	tests = [REGEX.hget(challenge_key,k).decode().split('\n') for k in sorted(REGEX.hkeys(challenge_key)) if search(r'test',str(k))]
 	result = [result_test(regex,test,answer) for test,answer in tests]
-	printing = ['{} _Test {}_'.format(em('white_check_mark'),index+1) if b else '{} _Test {}_'.format(em('no_entry_sign'),index+1) for index,b in enumerate(result)]
+	printing = ['{} _Test _`{:<2}`'.format(em('white_check_mark'),index+1) if b else '{} _Test _`{:<2}`'.format(em('no_entry_sign'),index+1) for index,b in enumerate(result)]
+	result_test1 = print_explicit_test(result_test(regex,tests[0][0],result=True),tests[0][1])
+	result_test2 = print_explicit_test(result_test(regex,tests[1][0],result=True),tests[1][1])
 	score_test = sum([1 for b in result if b])/len(result)
 	score_regex = (104-len(regex))/104 * floor(score_test)
 	score_total = (score_test*.8 + score_regex*.2) *100
-	return round(score_total,1),'\n'.join(printing)
+	first_test,second_test,others_test = printing[0],printing[1],'\n'.join('    '.join(printing[i:i+3]) for i in range(2,len(printing[2:])+2,3))
+	return round(score_total,1),'{}\n{}\n\n{}\n{}\n\n{}'.format(first_test,result_test1,second_test,result_test2,others_test)
 
 # Profile functions ----------------
 
