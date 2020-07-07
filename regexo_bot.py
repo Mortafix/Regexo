@@ -118,11 +118,13 @@ def start(update, context):
     telegram_id = update.message.chat.id
     db_name = update.message.from_user.username if update.message.from_user.username else user.first_name
     REGEX.hset('u{}'.format(telegram_id),'username',db_name)
-    update.message.reply_text('Welcome {}!\nI\'m `Regexo`, your worst regular expression nightmare.'.format(user.first_name),parse_mode='Markdown')
+    update.message.reply_text('Welcome {}!\nI\'m `Regexo`, your worst regular expression nightmare.\n\nUse /help to know how to survive.'.format(user.first_name),parse_mode='Markdown')
 
 def help(update, context):
     '''Send help message. [command /help]'''
-    update.message.reply_text('{} Help goes brrrr..'.format(emojize(':raised_hand:',use_aliases=True)))
+    update.message.reply_text(	'*Q*: _How the _*regex*_ works?_\n*A*: _You need to match everything the text said to you in the first group of the regex._\n\n'
+    							'*Q*: _Which _*commands*_ can I use?_\n*A*: _For now, you can only use _/challenges_ to play._\n\n'
+    							'*Q*: _Where can I send my _*complaints*_?_\n*A*: _There, to _[Mortafix](https://t.me/mortafix)_!_',parse_mode='Markdown')
 
 def cancel(update, context):
     '''User cancel conversation, exit gently'''
@@ -134,7 +136,7 @@ def cancel(update, context):
 
 def handle_text(update, context):
 	'''Handler for a non-command message.'''
-	update.message.reply_text('{} Hey *{}*, non sembra un comado accettabile questo...'.format(em('x'),update.message.from_user.first_name),parse_mode='Markdown')
+	update.message.reply_text('{} Hey *{}*, not today, maybe not even tomorrow, but definitely one day this command will do something...'.format(em('x'),update.message.from_user.first_name),parse_mode='Markdown')
 
 #--------------------------------- Commands -------------------------------------------
 
