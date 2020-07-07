@@ -7,6 +7,7 @@ from datetime import date
 from re import match,search
 from re import error as ReError
 import redis
+from math import floor
 
 
 # Enable logging and port
@@ -87,14 +88,17 @@ def delete_challenge(key):
 
 def result_test(regex,test,answer):
 	try: return search(regex,test).group(1) == answer
-	except (AttributeError, IndexError, ReError): return answer == '@@'
+	except (ReError, IndexError): return False
+	except AttributeError: return answer == '@@'
 
 def test_regex(regex,challenge_key):
 	tests = [REGEX.hget(challenge_key,k).decode().split('\n') for k in sorted(REGEX.hkeys(challenge_key)) if search(r'test',str(k))]
 	result = [result_test(regex,test,answer) for test,answer in tests]
 	printing = ['{} _Test {}_'.format(em('white_check_mark'),index+1) if b else '{} _Test {}_'.format(em('no_entry_sign'),index+1) for index,b in enumerate(result)]
-	score = (sum([1 for b in result if b])/len(result)*.8+(104-len(regex))/104*.2)*100
-	return round(score,1),'\n'.join(printing)
+	score_test = sum([1 for b in result if b])/len(result)
+	score_regex = (104-len(regex))/104 * floor(score_test)
+	score_total = (score_test*.8 + score_regex*.2) *100
+	return round(score_total,1),'\n'.join(printing)
 
 # Profile functions ----------------
 
