@@ -25,6 +25,9 @@ REGEX = redis.from_url(os.environ.get("REDIS_URL"))
 
 # Base function ---------------------------
 
+def are_you_admin(telegram_id):
+	return telegram_id in [18528224,]
+
 def debug_redis(update,context):
 	telegram_id = update.message.chat.id
 	if are_you_admin(telegram_id):
@@ -41,9 +44,6 @@ def key_to_date(key):
 
 def em(emoji_string):
 	return emojize(':'+emoji_string+':',use_aliases=True)
-
-def are_you_admin(telegram_id):
-	return telegram_id in [18528224,]
 
 def challenge_exists(key):
 	return key in REGEX
@@ -163,7 +163,7 @@ def cancel(update, context):
 
 def handle_text(update, context):
 	'''Handler for a non-command message.'''
-	update.message.reply_text('{} Hey *{}*, not today, maybe not even tomorrow, but definitely one day this command will do something...'.format(em('x'),update.message.from_user.first_name),parse_mode='Markdown')
+	update.message.reply_text('{} Hey *{}*.. not today, maybe not even tomorrow, but definitely one day this command will do something...'.format(em('x'),update.message.from_user.first_name),parse_mode='Markdown')
 
 #--------------------------------- Commands -------------------------------------------
 
@@ -175,7 +175,7 @@ def new_regex(update,context):
 	are_you_alive(telegram_id,update.message.from_user)
 	if not are_you_admin(telegram_id): update.message.reply_text('{} *STOP NOW*!\nYou aren\'t Admin Gang auh.'.format(em('no_entry_sign')),parse_mode='Markdown'); return ConversationHandler.END
 	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Today',callback_data='regex-date-today'),InlineKeyboardButton(text='Another Date',callback_data='regex-date-another')]])
-	update.message.reply_text('{} Choose challenge *date*.'.format(em('date')),reply_markup=reply_keyboard,parse_mode='Markdown')
+	update.message.reply_text('{} Choose challenge *date* or\n{} Upload a *file*.'.format(em('date'),em('page_facing_up')),reply_markup=reply_keyboard,parse_mode='Markdown')
 	return DATE_CHOOSE
 
 def add_description(update,context):
