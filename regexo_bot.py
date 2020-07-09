@@ -4,7 +4,7 @@ from telegram import ParseMode, ReplyKeyboardMarkup, ReplyKeyboardRemove, Inline
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, CallbackQueryHandler, PicklePersistence
 from emoji import emojize
 from datetime import date
-from re import match,search
+from re import match,search,sub
 from re import error as ReError
 import redis
 from math import floor
@@ -77,6 +77,15 @@ def create_list_keyboard(index,range,key,admin=False):
 	admin_line = [InlineKeyboardButton(text='Remove',callback_data='remove-'+key)] if admin else []
 	return InlineKeyboardMarkup([result,bottom_line,admin_line])
 
+def get_challenges(date=None,keywords=None):
+	if not date: date = 10**8
+	if keywords: return [c for m,c in sorted([(search_index_from_keyword(k,keywords),int(k.decode())) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= date]) if m]
+	return sorted([int(k.decode()) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= date],reverse=True)
+
+def search_index_from_keyword(datekey,keywords):
+	descr = REGEX.hget(datekey,'descr')
+	return sum([1 if k.lower() in sub(r'[*_`]','',descr.decode().lower()) else 0 for k in keywords])
+
 def search_index_from_date(regex_list,key_date):
 	return min([(abs(key_date-x),i) for i,x in enumerate(regex_list)])[1]
 
@@ -94,6 +103,7 @@ def result_test(regex,test,answer=None,result=False):
 	except AttributeError: return answer == '@@'
 
 def print_explicit_test(regex_matched,answer):
+	if answer == '@@': answer = ''
 	msg = '`Full match `'
 	end = '`Expected   ` *{}*'.format(answer)
 	if not regex_matched: return '{}\n{}'.format(msg,end)
@@ -140,7 +150,7 @@ def start(update, context):
 def help(update, context):
     '''Send help message. [command /help]'''
     update.message.reply_text(	'*Q*: _How the _*regex*_ works?_\n*A*: _You need to match everything the text said to you in the first group of the regex._\n\n'
-    							'*Q*: _Which _*commands*_ can I use?_\n*A*: _For now, you can only use _/challenges_ to play._\n\n'
+    							'*Q*: _Which _*commands*_ can I use?_\n*A*: _For now, you can use _/challenges_ to play or _/search_ to find a challenge by keywords._\n\n'
     							'*Q*: _Where can I send my _*complaints*_?_\n*A*: _There, to _[Mortafix](https://t.me/mortafix)_!_',parse_mode='Markdown')
 
 def cancel(update, context):
@@ -244,8 +254,8 @@ def list_regex(update,context):
 			update.callback_query.edit_message_text('{} Challenge remove correctly'.format(em('new_moon_with_face'))); return ConversationHandler.END
 		# from TODAY (date choose)
 		elif 'list-date' in data:
-			if are_you_admin(telegram_id): regex_past = sorted([int(k.decode()) for k in REGEX.keys() if not search('u',str(k))],reverse=True)
-			else: regex_past = sorted([int(k.decode()) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= date_to_key()],reverse=True)
+			if are_you_admin(telegram_id): regex_past = get_challenges()
+			else: regex_past = get_challenges(date_to_key())
 			list_range = list(range(0,len(regex_past)))
 			if regex_past:
 				idx = search_index_from_date(regex_past,data.get('list-date'))
@@ -284,22 +294,37 @@ def list_regex(update,context):
 	# from ANOTHER DATE (date choose)
 	else:
 		telegram_id = update.message.chat.id
-		date = update.message.text
-		try: date_key = date_to_key(date)
-		except ValueError: update.message.reply_text('{} Wrong date!\n\nTry again.\n\[dd-mm-yyyy]'.format(em('x')),parse_mode='Markdown'); return LIST_M
-		if are_you_admin(telegram_id): regex_past = sorted([int(k.decode()) for k in REGEX.keys() if not search('u',str(k))],reverse=True)
-		else: regex_past = sorted([int(k.decode()) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= date_to_key()],reverse=True)
-		list_range = list(range(0,len(regex_past)))
-		if regex_past:
-			idx = search_index_from_date(regex_past,date_key)
-			context.user_data.update({telegram_id:{'list-id':idx,'list-regex':regex_past,'list-range':list_range}})
-			reply_markup = create_list_keyboard(idx,list_range,regex_past[idx],admin=are_you_admin(telegram_id))
-			msg = print_challenge(regex_list=regex_past,index=idx,number=2,usr_id=telegram_id)
-			ret = LIST_C
-		else: 
-			reply_markup = None
-			msg = '{} No challenges yet.\n_Please rompere i maroni alla direzione_'.format(em('zzz'))
-			ret = ConversationHandler.END
+		if context.user_data.get(telegram_id) == 'keywords':
+			keywords = update.message.text.split()
+			challenges = get_challenges(keywords=keywords)
+			if challenges:
+				idx = len(challenges)-1
+				list_range = list(range(0,idx+1))
+				context.user_data.update({telegram_id:{'list-id':idx,'list-regex':challenges,'list-range':list_range}})
+				reply_markup = create_list_keyboard(idx,list_range,challenges[idx],admin=are_you_admin(telegram_id))
+				msg = print_challenge(regex_list=challenges,index=idx,number=2,usr_id=telegram_id)
+				ret = LIST_C
+			else: 
+				reply_markup = None
+				msg = '{} No challenges found with these *keywords*.'.format(em('mag'))
+				ret = ConversationHandler.END
+		else:
+			date = update.message.text
+			try: date_key = date_to_key(date)
+			except ValueError: update.message.reply_text('{} Wrong date!\n\nTry again.\n\[dd-mm-yyyy]'.format(em('x')),parse_mode='Markdown'); return LIST_M
+			if are_you_admin(telegram_id): regex_past = get_challenges()
+			else: regex_past = get_challenges(date_to_key())
+			list_range = list(range(0,len(regex_past)))
+			if regex_past:
+				idx = search_index_from_date(regex_past,date_key)
+				context.user_data.update({telegram_id:{'list-id':idx,'list-regex':regex_past,'list-range':list_range}})
+				reply_markup = create_list_keyboard(idx,list_range,regex_past[idx],admin=are_you_admin(telegram_id))
+				msg = print_challenge(regex_list=regex_past,index=idx,number=2,usr_id=telegram_id)
+				ret = LIST_C
+			else: 
+				reply_markup = None
+				msg = '{} No challenges yet.\n_Please rompere i maroni alla direzione_'.format(em('zzz'))
+				ret = ConversationHandler.END
 		update.message.reply_text(msg,reply_markup=reply_markup,parse_mode='Markdown')
 		return ret
 
@@ -337,6 +362,13 @@ def play_challenge(update,context):
 			REGEX.hset('u{}'.format(telegram_id),challenge_key,'{}@@{}'.format(regex,score_regex))
 		score = context.user_data.get(telegram_id).get('score')
 		update.message.reply_text('Regex: `{}`\nMax score: *{}*\nCurrent score: *{}*\n\n{}'.format(regex,score,score_regex,tests),reply_markup=keyboard,parse_mode='Markdown'); return PLAY
+# SEARCH ------------------------------------------------------
+
+def search_request(update,context):
+	telegram_id = update.message.chat.id
+	context.user_data.update({telegram_id:'keywords'})
+	update.message.reply_text('{} Insert *one or more keywords* to find a challenge.\n(separated by a space)'.format(em('key')),parse_mode='Markdown')
+	return LIST_M
 
 # FILE --------------------------------------------------------
 
@@ -416,11 +448,25 @@ def main():
     	persistent=True
     	)
 
+    conv_search = ConversationHandler(
+    	entry_points = [CommandHandler("search",search_request)],
+    	states = {
+    		LIST_C: [CallbackQueryHandler(list_regex)],
+    		LIST_M: [MessageHandler(Filters.text,list_regex)],
+    		PLAY: [MessageHandler(Filters.text,play_challenge),CallbackQueryHandler(play_challenge)],
+    		PLAY_DISPACTHER: [CallbackQueryHandler(play_dispatcher)]
+    	},
+    	fallbacks = [CommandHandler("cancel",cancel)],
+    	name='search-conversation',
+    	persistent=True
+    	)
+
     # -----------------------------------------------------------------------
 
     # handlers - commands and conversations
     dp.add_handler(conv_new_regex)
     dp.add_handler(conv_list)
+    dp.add_handler(conv_search)
     dp.add_handler(cmd_start)
     dp.add_handler(cmd_help)
     dp.add_handler(cmd_debug)
