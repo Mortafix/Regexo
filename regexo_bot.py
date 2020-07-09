@@ -77,8 +77,8 @@ def create_list_keyboard(index,range,key,admin=False):
 	admin_line = [InlineKeyboardButton(text='Remove',callback_data='remove-'+key)] if admin else []
 	return InlineKeyboardMarkup([result,bottom_line,admin_line])
 
-def get_challenges(date=None,keywords=None):
-	if not date: date = 10**8
+def get_challenges(keywords=None,admin=False):
+	date = 10**8 if admin else date_to_key()
 	if keywords: return [c for m,c in sorted([(search_index_from_keyword(k,keywords),int(k.decode())) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= date]) if m]
 	return sorted([int(k.decode()) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= date],reverse=True)
 
@@ -254,8 +254,7 @@ def list_regex(update,context):
 			update.callback_query.edit_message_text('{} Challenge remove correctly'.format(em('new_moon_with_face'))); return ConversationHandler.END
 		# from TODAY (date choose)
 		elif 'list-date' in data:
-			if are_you_admin(telegram_id): regex_past = get_challenges()
-			else: regex_past = get_challenges(date_to_key())
+			regex_past = get_challenges(admin=are_you_admin(telegram_id))
 			list_range = list(range(0,len(regex_past)))
 			if regex_past:
 				idx = search_index_from_date(regex_past,data.get('list-date'))
@@ -296,7 +295,7 @@ def list_regex(update,context):
 		telegram_id = update.message.chat.id
 		if context.user_data.get(telegram_id) == 'keywords':
 			keywords = update.message.text.split()
-			challenges = get_challenges(keywords=keywords)
+			challenges = get_challenges(keywords=keywords,admin=are_you_admin(telegram_id))
 			if challenges:
 				idx = len(challenges)-1
 				list_range = list(range(0,idx+1))
@@ -312,8 +311,7 @@ def list_regex(update,context):
 			date = update.message.text
 			try: date_key = date_to_key(date)
 			except ValueError: update.message.reply_text('{} Wrong date!\n\nTry again.\n\[dd-mm-yyyy]'.format(em('x')),parse_mode='Markdown'); return LIST_M
-			if are_you_admin(telegram_id): regex_past = get_challenges()
-			else: regex_past = get_challenges(date_to_key())
+			regex_past = get_challenges(admin=are_you_admin(telegram_id))
 			list_range = list(range(0,len(regex_past)))
 			if regex_past:
 				idx = search_index_from_date(regex_past,date_key)
