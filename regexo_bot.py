@@ -95,10 +95,14 @@ def delete_challenge(key):
 
 # Testing functions ----------------
 
-def result_test(regex,test,answer=None,result=False):
+def result_test(regex,test,answer=None,substitution=None):
 	try:
-		if result: return search(regex,test)
-		return search(regex,test).group(1) == answer
+		if substitution: 
+			m = sub(regex,substitution,test)
+			return m if not answer else m == answer
+		else:
+			m = search(regex,test)
+			return m if not answer else m.group(1) == answer
 	except (ReError, IndexError): return False
 	except AttributeError: return answer == '@@'
 
@@ -111,14 +115,25 @@ def print_explicit_test(regex_matched,answer):
 	if not groups: return '{} *{}*\n{}'.format(msg,regex_matched.group(0),end)
 	return '{} *{}*\n`Group1`            *{}*\n{}'.format(msg,regex_matched.group(0),groups[0],end)
 
+def print_explicit_test_sub(substitution,answer):
+	res = substitution if substitution else ''
+	return '`Result   `*{}*\n`Expected ` *{}*'.format(res,answer)
+
 def test_regex(regex,challenge_key):
+	substitution = None
+	if len(regex.split('\n')) == 2: regex,substitution = regex.split('\n')
 	tests = [REGEX.hget(challenge_key,k).decode().split('\n') for k in sorted(REGEX.hkeys(challenge_key)) if search(r'test',str(k))]
-	result = [result_test(regex,test,answer) for test,answer in tests]
+	result = [result_test(regex,test,answer,substitution=substitution) for test,answer in tests]
 	printing = ['{} _Test _`{:<2}`'.format(em('white_check_mark'),index+1) if b else '{} _Test _`{:<2}`'.format(em('no_entry_sign'),index+1) for index,b in enumerate(result)]
-	result_test1 = print_explicit_test(result_test(regex,tests[0][0],result=True),tests[0][1])
-	result_test2 = print_explicit_test(result_test(regex,tests[1][0],result=True),tests[1][1])
+	if not substitution:
+		result_test1 = print_explicit_test(result_test(regex,tests[0][0]),tests[0][1])
+		result_test2 = print_explicit_test(result_test(regex,tests[1][0]),tests[1][1])
+	else:
+		result_test1 = print_explicit_test_sub(result_test(regex,tests[0][0],substitution=substitution),tests[0][1])
+		result_test2 = print_explicit_test_sub(result_test(regex,tests[1][0],substitution=substitution),tests[1][1])
 	score_test = sum([1 for b in result if b])/len(result)
-	score_regex = (104-len(regex))/104 * floor(score_test)
+	max_length = 104 if not substitution else 101
+	score_regex = (max_length-len(regex))/100 * floor(score_test)
 	score_total = (score_test*.8 + score_regex*.2) *100
 	first_test,second_test,others_test = printing[0],printing[1],'\n'.join('    '.join(printing[i:i+3]) for i in range(2,len(printing[2:])+2,3))
 	return round(score_total,1),'{}\n{}\n\n{}\n{}\n\n{}'.format(first_test,result_test1,second_test,result_test2,others_test)
@@ -240,7 +255,7 @@ def list_regex(update,context):
 			max_score = float(history.decode().split('@@')[1]) if history else 0
 			data.update({'play':challenge_key.group(1),'score':max_score})
 			keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Preview',callback_data='preview'),InlineKeyboardButton(text='End',callback_data='end')]])
-			update.callback_query.edit_message_text('{} Challenge started!\n\nInsert your *regex*.'.format(em('zap')),reply_markup=keyboard,parse_mode='Markdown'); return PLAY 
+			update.callback_query.edit_message_text('{} Challenge started!\n\nInsert your *regex*\n(and a *substitution* if needed)'.format(em('zap')),reply_markup=keyboard,parse_mode='Markdown'); return PLAY 
 		# SCOREBOARD Button
 		elif scoreboard_key:
 			history = REGEX.hget('u{}'.format(telegram_id),scoreboard_key.group(1))
@@ -334,7 +349,7 @@ def play_dispatcher(update,context):
 	score = context.user_data.get(telegram_id).get('score')
 	if query.data == 'play-regex':
 		keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Preview',callback_data='preview'),InlineKeyboardButton(text='End',callback_data='end')]])
-		query.edit_message_text('{} Challenge started!\n\nInsert your *regex*.'.format(em('zap')),reply_markup=keyboard,parse_mode='Markdown')
+		query.edit_message_text('{} Challenge started!\n\nInsert your *regex*\n(and a *substitution* if needed)'.format(em('zap')),reply_markup=keyboard,parse_mode='Markdown')
 		return PLAY
 	elif query.data == 'back': list_regex(update,context); return LIST_C
 	elif query.data == 'end': query.edit_message_text('{} Challenge completed!\nScore: *{}*'.format(em('tada'),score),parse_mode='Markdown'); return ConversationHandler.END
@@ -347,7 +362,7 @@ def play_challenge(update,context):
 		score = context.user_data.get(telegram_id).get('score')
 		challenge_key = context.user_data.get(telegram_id).get('play')
 		keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='End',callback_data='end')]])
-		if query.data == 'preview': query.edit_message_text('{}\n\nInsert your *regex* to play.'.format(print_challenge(key=challenge_key,number=2,usr_id=telegram_id)),reply_markup=keyboard,parse_mode='Markdown'); return PLAY
+		if query.data == 'preview': query.edit_message_text('{}\n\nInsert your *regex* to play\n(and a *substitution* if needed)'.format(print_challenge(key=challenge_key,number=2,usr_id=telegram_id)),reply_markup=keyboard,parse_mode='Markdown'); return PLAY
 		elif query.data == 'end': query.edit_message_text('{} Challenge completed!\nScore: *{}*'.format(em('tada'),score),parse_mode='Markdown'); return ConversationHandler.END
 	else:
 		telegram_id = update.message.chat.id
