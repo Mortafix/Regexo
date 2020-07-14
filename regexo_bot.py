@@ -96,7 +96,8 @@ def delete_challenge(key):
 
 def random_challenges(user):
 	today = date_to_key()
-	return [choice([int(k.decode()) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= today and not REGEX.hget('u{}'.format(user),k)])]
+	challenges = [int(k.decode()) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= today and not REGEX.hget('u{}'.format(user),k)]
+	return [choice(challenges)] if challenges else []
 
 # Testing functions ----------------
 
