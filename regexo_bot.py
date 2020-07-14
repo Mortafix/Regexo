@@ -266,7 +266,7 @@ def list_regex(update,context):
 			history = REGEX.hget('u{}'.format(telegram_id),scoreboard_key.group(1))
 			max_score = float(history.decode().split('@@')[1]) if history else 0
 			data.update({'play':scoreboard_key.group(1),'score':max_score})
-			keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} Play'.format(em('video_game')),callback_data='play-regex')],[InlineKeyboardButton(text='{} End'.format(em('x')),callback_data='end'),InlineKeyboardButton(text='{} Back'.format(em('arrow_left')),callback_data='back')]])
+			keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} Play'.format(em('video_game')),callback_data='play-regex')],[InlineKeyboardButton(text='{} Back'.format(em('arrow_left')),callback_data='back'),InlineKeyboardButton(text='{} End'.format(em('x')),callback_data='end')]])
 			update.callback_query.edit_message_text('{0} *LEADERBOARD* {0}\n\n{1}'.format(em('trophy'),get_leaderboard(scoreboard_key.group(1))),reply_markup=keyboard,parse_mode='Markdown'); return PLAY_DISPACTHER
 		# REMOVE button
 		elif remove_key:
