@@ -8,6 +8,7 @@ from re import match,search,sub
 from re import error as ReError
 import redis
 from math import floor
+from random import choice
 
 
 # Enable logging and port
@@ -73,8 +74,8 @@ def create_list_keyboard(index,range,key,admin=False):
 	if index+1 in range: result.append(InlineKeyboardButton(text=em('arrow_backward'),callback_data='list-left'))
 	result.append(InlineKeyboardButton(text=em('x'),callback_data='list-cancel'))
 	if index-1 in range: result.append(InlineKeyboardButton(text=em('arrow_forward'),callback_data='list-right'))
-	bottom_line = [InlineKeyboardButton(text='Play',callback_data='play-regex-'+key),InlineKeyboardButton(text='Leaderboard',callback_data='scoreboard-'+key)]
-	admin_line = [InlineKeyboardButton(text='Remove',callback_data='remove-'+key)] if admin else []
+	bottom_line = [InlineKeyboardButton(text='{} Play'.format(em('video_game')),callback_data='play-regex-'+key),InlineKeyboardButton(text='{} Leaderboard'.format(em('trophy')),callback_data='scoreboard-'+key)]
+	admin_line = [InlineKeyboardButton(text='{} Remove'.format(em('package')),callback_data='remove-'+key)] if admin else []
 	return InlineKeyboardMarkup([result,bottom_line,admin_line])
 
 def get_challenges(keywords=None,admin=False):
@@ -92,6 +93,10 @@ def search_index_from_date(regex_list,key_date):
 def delete_challenge(key):
 	for k in REGEX.hkeys(key): REGEX.hdel(key,k)
 	for k in REGEX.keys(): REGEX.hdel(k,key)
+
+def random_challenges(user):
+	today = date_to_key()
+	return [choice([int(k.decode()) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= today and not REGEX.hget('u{}'.format(user),k)])]
 
 # Testing functions ----------------
 
@@ -189,7 +194,7 @@ def new_regex(update,context):
 	telegram_id = update.message.chat.id
 	are_you_alive(telegram_id,update.message.from_user)
 	if not are_you_admin(telegram_id): update.message.reply_text('{} *STOP NOW*!\nYou aren\'t Admin Gang auh.'.format(em('no_entry_sign')),parse_mode='Markdown'); return ConversationHandler.END
-	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Today',callback_data='regex-date-today'),InlineKeyboardButton(text='Another Date',callback_data='regex-date-another')]])
+	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} Today'.format(em('pushpin')),callback_data='regex-date-today'),InlineKeyboardButton(text='{} Another Date'.format(em('crystal_ball')),callback_data='regex-date-another')]])
 	update.message.reply_text('{} Choose challenge *date* or\n{} Upload a *file*.'.format(em('date'),em('page_facing_up')),reply_markup=reply_keyboard,parse_mode='Markdown')
 	return DATE_CHOOSE
 
@@ -198,8 +203,8 @@ def add_description(update,context):
 	telegram_id = update.message.chat.id
 	date = update.message.text
 	try: date_key = date_to_key(date)
-	except ValueError: update.message.reply_text('{} Wrong date!\n\nTry again.\n\[dd-mm-yyyy]'.format(em('x')),parse_mode='Markdown'); return ADD_DESCRIPTION
-	if challenge_exists(date_key): query.edit_message_text('{} Challenge already exists on this date.'.format(em('no_entry'))); return ConversationHandler.END
+	except ValueError: update.message.reply_text('{} Wrong date!\n\n{} Try again.\n\[dd-mm-yyyy]'.format(em('x'),em('date')),parse_mode='Markdown'); return ADD_DESCRIPTION
+	if challenge_exists(date_key): update.message.reply_text('{} Challenge already exists on this date.'.format(em('no_entry'))); return ConversationHandler.END
 	context.user_data.update({telegram_id:{'regex-date':date_key,'index-test':1}})
 	update.message.reply_text('{} Insert *description*.\n(markdown available)'.format(em('page_facing_up')),parse_mode='Markdown')
 	return ADD_TEST
@@ -208,7 +213,7 @@ def add_test(update,context):
 	'''/newregex - Choose a new test or stop'''
 	telegram_id = update.message.chat.id
 	msg = ''
-	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Add test',callback_data='test-new'),InlineKeyboardButton(text='End',callback_data='test-stop')]])
+	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} Add test'.format(em('heavy_plus_sign')),callback_data='test-new'),InlineKeyboardButton(text='{} End'.format(em('x')),callback_data='test-stop')]])
 	d_key = context.user_data.get(telegram_id).get('regex-date')
 	if d_key not in REGEX: REGEX.hset(d_key,'descr',update.message.text)
 	else:
@@ -218,7 +223,7 @@ def add_test(update,context):
 			idx = context.user_data.get(telegram_id).get('index-test')
 			REGEX.hset(d_key,'test{:02d}'.format(idx),update.message.text)
 			context.user_data.get(telegram_id).update({'index-test':idx+1})
-			msg = '{} Test added!\n\n'.format(em('white_check_mark'))
+			msg = '{} Test *{}* added!\n\n'.format(em('white_check_mark'),idx)
 	update.message.reply_text(msg+'Do you want to add a new *test*?',reply_markup=reply_keyboard,parse_mode='Markdown')
 	return NEW_TEST
 
@@ -236,8 +241,8 @@ def list_request(update,context):
 	'''/newregex - Choose date'''
 	telegram_id = update.message.chat.id
 	are_you_alive(telegram_id,update.message.from_user)
-	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Today',callback_data='list-date-today'),InlineKeyboardButton(text='Another Date',callback_data='list-date-another')]])
-	update.message.reply_text('{} Choose a *challenge* to view.'.format(em('date')),reply_markup=reply_keyboard,parse_mode='Markdown')
+	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} Today'.format(em('pushpin')),callback_data='list-date-today'),InlineKeyboardButton(text='{} Another Date'.format(em('crystal_ball')),callback_data='list-date-another')],[InlineKeyboardButton('{} Random'.format(em('game_die')),callback_data='list-random')]])
+	update.message.reply_text('{} Choose a *challenge* to play.'.format(em('date')),reply_markup=reply_keyboard,parse_mode='Markdown')
 	return DATE_CHOOSE
 
 def list_regex(update,context):
@@ -254,14 +259,14 @@ def list_regex(update,context):
 			history = REGEX.hget('u{}'.format(telegram_id),challenge_key.group(1))
 			max_score = float(history.decode().split('@@')[1]) if history else 0
 			data.update({'play':challenge_key.group(1),'score':max_score})
-			keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Preview',callback_data='preview'),InlineKeyboardButton(text='End',callback_data='end')]])
+			keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} Preview'.format(em('mag')),callback_data='preview'),InlineKeyboardButton(text='{} End'.format(em('x')),callback_data='end')]])
 			update.callback_query.edit_message_text('{} Challenge started!\n\nInsert your *regex*\n(and a *substitution* if needed)'.format(em('zap')),reply_markup=keyboard,parse_mode='Markdown'); return PLAY 
 		# SCOREBOARD Button
 		elif scoreboard_key:
 			history = REGEX.hget('u{}'.format(telegram_id),scoreboard_key.group(1))
 			max_score = float(history.decode().split('@@')[1]) if history else 0
 			data.update({'play':scoreboard_key.group(1),'score':max_score})
-			keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Play',callback_data='play-regex'),InlineKeyboardButton(text='End',callback_data='end')],[InlineKeyboardButton(text='Back',callback_data='back')]])
+			keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} Play'.format(em('video_game')),callback_data='play-regex')],[InlineKeyboardButton(text='{} End'.format(em('x')),callback_data='end'),InlineKeyboardButton(text='{} Back'.format(em('arrow_left')),callback_data='back')]])
 			update.callback_query.edit_message_text('{0} *LEADERBOARD* {0}\n\n{1}'.format(em('trophy'),get_leaderboard(scoreboard_key.group(1))),reply_markup=keyboard,parse_mode='Markdown'); return PLAY_DISPACTHER
 		# REMOVE button
 		elif remove_key:
@@ -280,6 +285,22 @@ def list_regex(update,context):
 			else: 
 				reply_markup = None
 				msg = '{} No challenges yet.\n_Please rompere i maroni alla direzione_'.format(em('zzz'))
+				ret = ConversationHandler.END
+			update.callback_query.edit_message_text(msg,reply_markup=reply_markup,parse_mode='Markdown')
+			return ret
+		# from RANDOM
+		elif 'random' in data:
+			regex_past = random_challenges(telegram_id)
+			list_range = list(range(0,len(regex_past)))
+			if regex_past:
+				idx = len(regex_past)-1
+				context.user_data.update({telegram_id:{'list-id':idx,'list-regex':regex_past,'list-range':list_range}})
+				reply_markup = create_list_keyboard(idx,list_range,regex_past[idx],admin=are_you_admin(telegram_id))
+				msg = print_challenge(regex_list=regex_past,index=idx,number=2,usr_id=telegram_id)
+				ret = LIST_C
+			else: 
+				reply_markup = None
+				msg = '{} All challenges played.\n_Please rompere i maroni alla direzione_'.format(em('zzz'))
 				ret = ConversationHandler.END
 			update.callback_query.edit_message_text(msg,reply_markup=reply_markup,parse_mode='Markdown')
 			return ret
@@ -325,7 +346,7 @@ def list_regex(update,context):
 		else:
 			date = update.message.text
 			try: date_key = date_to_key(date)
-			except ValueError: update.message.reply_text('{} Wrong date!\n\nTry again.\n\[dd-mm-yyyy]'.format(em('x')),parse_mode='Markdown'); return LIST_M
+			except ValueError: update.message.reply_text('{} Wrong date!\n\n{} Try again.\n\[dd-mm-yyyy]'.format(em('x'),em('date')),parse_mode='Markdown'); return LIST_M
 			regex_past = get_challenges(admin=are_you_admin(telegram_id))
 			list_range = list(range(0,len(regex_past)))
 			if regex_past:
@@ -348,7 +369,7 @@ def play_dispatcher(update,context):
 	telegram_id = query.message.chat.id
 	score = context.user_data.get(telegram_id).get('score')
 	if query.data == 'play-regex':
-		keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Preview',callback_data='preview'),InlineKeyboardButton(text='End',callback_data='end')]])
+		keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} Preview'.format(em('mag')),callback_data='preview'),InlineKeyboardButton(text='{} End'.format(em('x')),callback_data='end')]])
 		query.edit_message_text('{} Challenge started!\n\nInsert your *regex*\n(and a *substitution* if needed)'.format(em('zap')),reply_markup=keyboard,parse_mode='Markdown')
 		return PLAY
 	elif query.data == 'back': list_regex(update,context); return LIST_C
@@ -361,14 +382,14 @@ def play_challenge(update,context):
 		telegram_id = update.callback_query.message.chat.id
 		score = context.user_data.get(telegram_id).get('score')
 		challenge_key = context.user_data.get(telegram_id).get('play')
-		keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='End',callback_data='end')]])
+		keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} End'.format(em('x')),callback_data='end')]])
 		if query.data == 'preview': query.edit_message_text('{}\n\nInsert your *regex* to play\n(and a *substitution* if needed)'.format(print_challenge(key=challenge_key,number=2,usr_id=telegram_id)),reply_markup=keyboard,parse_mode='Markdown'); return PLAY
 		elif query.data == 'end': query.edit_message_text('{} Challenge completed!\nScore: *{}*'.format(em('tada'),score),parse_mode='Markdown'); return ConversationHandler.END
 	else:
 		telegram_id = update.message.chat.id
 		challenge_key = context.user_data.get(telegram_id).get('play')
 		regex = update.message.text
-		keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Preview',callback_data='preview'),InlineKeyboardButton(text='End',callback_data='end')]])
+		keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} Preview'.format(em('mag')),callback_data='preview'),InlineKeyboardButton(text='{} End'.format(em('x')),callback_data='end')]])
 		score_regex,tests = test_regex(regex,challenge_key)
 		if score_regex > context.user_data.get(telegram_id).get('score'):
 			context.user_data.get(telegram_id).update({'score':score_regex})
@@ -414,9 +435,10 @@ def date_dispatcher(update,context):
 		query.edit_message_text('{} Insert *description*.\n(markdown available)'.format(em('page_facing_up')),parse_mode='Markdown')
 		context.user_data.update({telegram_id:{'regex-date':date_to_key(),'index-test':1}})
 		return ADD_TEST
-	elif query.data == 'regex-date-another': query.edit_message_text('Insert *date*.\n\[dd-mm-yyyy]',parse_mode='Markdown'); return ADD_DESCRIPTION
+	elif query.data == 'regex-date-another': query.edit_message_text('{} Insert *date*.\n\[dd-mm-yyyy]'.format(em('date')),parse_mode='Markdown'); return ADD_DESCRIPTION
 	elif query.data == 'list-date-today': context.user_data.update({telegram_id:{'list-date':date_to_key()}}); return list_regex(update,context)
-	elif query.data == 'list-date-another': query.edit_message_text('Insert *date*.\n\[dd-mm-yyyy]',parse_mode='Markdown'); return LIST_M
+	elif query.data == 'list-date-another': query.edit_message_text('{} Insert *date*.\n\[dd-mm-yyyy]'.format(em('date')),parse_mode='Markdown'); return LIST_M
+	elif query.data == 'list-random': context.user_data.update({telegram_id:'random'}); return list_regex(update,context)
 
 # MAIN ----------------------------------------------------------------------------------
 
