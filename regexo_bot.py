@@ -301,7 +301,7 @@ def list_regex(update,context):
 				ret = LIST_C
 			else: 
 				reply_markup = None
-				msg = '{} All challenges played.\n_Please rompere i maroni alla direzione_'.format(em('zzz'))
+				msg = '{} All challenges played!'.format(em('100'))
 				ret = ConversationHandler.END
 			update.callback_query.edit_message_text(msg,reply_markup=reply_markup,parse_mode='Markdown')
 			return ret
