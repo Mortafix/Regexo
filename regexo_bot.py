@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 PORT = int(os.environ.get('PORT', 5000))
 # Config variables
 TOKEN = '1178476105:AAEeuMbyRQ5blEM11V0xtqEkiMsDGhnikyU'
-ADD_TEST,NEW_TEST,ADD_DESCRIPTION,DATE_CHOOSE,LIST_C,LIST_M,PLAY,PLAY_DISPACTHER = range(8)
+ADD_TEST,NEW_TEST,ADD_DESCRIPTION,DATE_CHOOSE,LIST_C,LIST_M,PLAY,PLAY_DISPACTHER,ADD_DIFFICULTY = range(9)
 # Redis Setup
 REGEX = redis.from_url(os.environ.get("REDIS_URL"))
 #REGEX = redis.Redis(host='localhost', port=6379, db=0) # terminal debugging
@@ -59,11 +59,18 @@ def are_you_alive(telegram_id,user):
 def print_challenge(regex_list=None,index=None,key=None,number=None,usr_id=None):
 	if regex_list: key = regex_list[index]
 	descr = REGEX.hget(key,'descr').decode()
+	difficulty = REGEX.hget(key,'difficulty').decode()
 	test = [REGEX.hget(key,k).decode().split('\n') for k in sorted(REGEX.hkeys(key)) if search(r'test',str(k))]
 	k = key
 	player_score = REGEX.hget('u{}'.format(usr_id),key)
 	player = '\n\n{} Played!\nPoints: *{}*\nRegex: `{}`'.format(em('tada'),player_score.decode().split('@@')[1],player_score.decode().split('@@')[0]) if player_score else ''
-	return '\[{}]\n{} {}\n\n{}{}'.format(key_to_date(str(k)),em('bell'),descr,print_tests(test,number),player)
+	return '{} *{}*\n{}\n{} {}\n\n{}{}'.format(em('date'),key_to_date(str(k)),print_difficulty(difficulty),em('bell'),descr,print_tests(test,number),player)
+
+def print_difficulty(difficulty):
+	if difficulty == 'EASY': emj = em('four_leaf_clover')
+	elif difficulty == 'MEDIUM': emj = em('zap')
+	elif difficulty == 'HARD': emj = em('fire')
+	return '{0} *{1}* {0}'.format(emj,difficulty)
 
 def print_tests(test_list,number):
 	dots = '\n...' if number and number < len(test_list) else ''
@@ -123,7 +130,7 @@ def print_explicit_test(regex_matched,answer):
 
 def print_explicit_test_sub(substitution,answer):
 	res = substitution if substitution else ''
-	return '`Result   `*{}*\n`Expected ` *{}*'.format(res,answer)
+	return '`Result    `*{}*\n`Expected ` *{}*'.format(res,answer)
 
 def test_regex(regex,challenge_key):
 	substitution = None
@@ -196,18 +203,32 @@ def new_regex(update,context):
 	are_you_alive(telegram_id,update.message.from_user)
 	if not are_you_admin(telegram_id): update.message.reply_text('{} *STOP NOW*!\nYou aren\'t Admin Gang auh.'.format(em('no_entry_sign')),parse_mode='Markdown'); return ConversationHandler.END
 	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} Today'.format(em('pushpin')),callback_data='regex-date-today'),InlineKeyboardButton(text='{} Another Date'.format(em('crystal_ball')),callback_data='regex-date-another')]])
-	update.message.reply_text('{} Choose challenge *date* or\n{} Upload a *file*.'.format(em('date'),em('page_facing_up')),reply_markup=reply_keyboard,parse_mode='Markdown')
+	update.message.reply_text('{} Choose challenge *date* _or_\n{} Upload a *file*.'.format(em('date'),em('page_facing_up')),reply_markup=reply_keyboard,parse_mode='Markdown')
 	return DATE_CHOOSE
 
-def add_description(update,context):
-	'''/newregex - Add description'''
+def add_difficulty(update,context):
+	''''/newrex - Add difficulty'''
 	telegram_id = update.message.chat.id
 	date = update.message.text
 	try: date_key = date_to_key(date)
-	except ValueError: update.message.reply_text('{} Wrong date!\n\n{} Try again.\n\[dd-mm-yyyy]'.format(em('x'),em('date')),parse_mode='Markdown'); return ADD_DESCRIPTION
+	except ValueError: update.message.reply_text('{} Wrong date!\n\n{} Try again.\n\[dd-mm-yyyy]'.format(em('x'),em('date')),parse_mode='Markdown'); return ADD_DIFFICULTY
 	if challenge_exists(date_key): update.message.reply_text('{} Challenge already exists on this date.'.format(em('no_entry'))); return ConversationHandler.END
 	context.user_data.update({telegram_id:{'regex-date':date_key,'index-test':1}})
-	update.message.reply_text('{} Insert *description*.\n(markdown available)'.format(em('page_facing_up')),parse_mode='Markdown')
+	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} EASY'.format(em('heavy_plus_sign')),callback_data='difficulty-easy'),InlineKeyboardButton(text='{} MEDIUM'.format(em('x')),callback_data='difficulty-medium'),InlineKeyboardButton(text='{} HARD'.format(em('x')),callback_data='difficulty-hard')]])
+	update.message.reply_text('{} Select *difficulty*.\n'.format(em('page_facing_up')),reply_markup=reply_keyboard, parse_mode='Markdown')
+	return ADD_DESCRIPTION
+
+def add_description(update,context):
+	'''/newregex - Add description'''
+	query = update.callback_query
+	telegram_id = query.message.chat.id
+	query.answer()
+	if query.data == 'difficulty-easy': difficulty = 'EASY' 
+	elif query.data == 'difficulty-medium': difficulty = 'MEDIUM'
+	elif query.data == 'difficulty-hard': difficulty = 'HARD' 
+	d_key = context.user_data.get(telegram_id).get('regex-date')
+	if d_key not in REGEX: REGEX.hset(d_key,'difficulty',difficulty)
+	query.edit_message_text('{} Insert *description*.\n(markdown available)'.format(em('page_facing_up')),parse_mode='Markdown')
 	return ADD_TEST
 
 def add_test(update,context):
@@ -216,7 +237,7 @@ def add_test(update,context):
 	msg = ''
 	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} Add test'.format(em('heavy_plus_sign')),callback_data='test-new'),InlineKeyboardButton(text='{} End'.format(em('x')),callback_data='test-stop')]])
 	d_key = context.user_data.get(telegram_id).get('regex-date')
-	if d_key not in REGEX: REGEX.hset(d_key,'descr',update.message.text)
+	if not REGEX.hexists(d_key,'descr'): REGEX.hset(d_key,'descr',update.message.text)
 	else:
 		test = tuple(update.message.text.split('\n'))
 		if len(test) != 2: msg = '{} Wrong format!\n\n'.format(em('x'))
@@ -416,9 +437,12 @@ def get_challenge_from_file(update,context):
 	except ValueError: update.message.reply_text('{} Please check *date* format in file.\nMust be [dd-mm-yyy]'.format(em('no_entry')),parse_mode='Markdown'); return ConversationHandler.END
 	if challenge_exists(date_key): update.message.reply_text('{} Challenge already exists on this date.'.format(em('no_entry'))); return ConversationHandler.END
 	descr = lines[1]
-	test = [l for l in lines[2:] if l]
+	difficulty = lines[2].upper()
+	if difficulty not in ['EASY','MEDIUM','HARD']: update.message.reply_text('{} Invalid difficulty level. Must be *EASY*, *MEDIUM*, or *HARD*.'.format(em('no_entry')),parse_mode='Markdown'); return ConversationHandler.END
+	test = [l for l in lines[3:] if l]
 	if len(test) % 2 != 0: update.message.reply_text('{} Please check *tests*.\nMust be two lines for each test.'.format(em('no_entry')),parse_mode='Markdown'); return ConversationHandler.END
 	REGEX.hset(date_key,'descr',descr)
+	REGEX.hset(date_key,'difficulty',difficulty)
 	for i,t in enumerate(test):
 		if not i%2: REGEX.hset(date_key,'test{:02d}'.format(i//2+1),'{}\n{}'.format(t,test[i+1])) 
 	update.message.reply_text('{} Challenge added!\n\n{}'.format(em('tada'),print_challenge(key=date_key,usr_id=telegram_id)),parse_mode='Markdown')
@@ -433,10 +457,12 @@ def date_dispatcher(update,context):
 	query.answer()
 	if query.data == 'regex-date-today':
 		if challenge_exists(date_to_key()): query.edit_message_text('{} Challenge already exists on this date.'.format(em('no_entry'))); return ConversationHandler.END
-		query.edit_message_text('{} Insert *description*.\n(markdown available)'.format(em('page_facing_up')),parse_mode='Markdown')
+		reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} EASY'.format(em('heavy_plus_sign')),callback_data='difficulty-easy'),InlineKeyboardButton(text='{} MEDIUM'.format(em('x')),callback_data='difficulty-medium'),InlineKeyboardButton(text='{} HARD'.format(em('x')),callback_data='difficulty-hard')]])
+		query.edit_message_text('{} Select *difficulty*.\n'.format(em('page_facing_up')),reply_markup=reply_keyboard, parse_mode='Markdown')
+		#query.edit_message_text('{} Insert *description*.\n(markdown available)'.format(em('page_facing_up')),parse_mode='Markdown')
 		context.user_data.update({telegram_id:{'regex-date':date_to_key(),'index-test':1}})
-		return ADD_TEST
-	elif query.data == 'regex-date-another': query.edit_message_text('{} Insert *date*.\n\[dd-mm-yyyy]'.format(em('date')),parse_mode='Markdown'); return ADD_DESCRIPTION
+		return ADD_DESCRIPTION
+	elif query.data == 'regex-date-another': query.edit_message_text('{} Insert *date*.\n\[dd-mm-yyyy]'.format(em('date')),parse_mode='Markdown'); return ADD_DIFFICULTY
 	elif query.data == 'list-date-today': context.user_data.update({telegram_id:{'list-date':date_to_key()}}); return list_regex(update,context)
 	elif query.data == 'list-date-another': query.edit_message_text('{} Insert *date*.\n\[dd-mm-yyyy]'.format(em('date')),parse_mode='Markdown'); return LIST_M
 	elif query.data == 'list-random': context.user_data.update({telegram_id:'random'}); return list_regex(update,context)
@@ -460,7 +486,8 @@ def main():
     conv_new_regex = ConversationHandler(
     	entry_points = [CommandHandler('regex',new_regex)],
     	states = {
-    		ADD_DESCRIPTION: [MessageHandler(Filters.text,add_description)],
+			ADD_DIFFICULTY: [MessageHandler(Filters.text,add_difficulty)],
+    		ADD_DESCRIPTION: [CallbackQueryHandler(add_description)],
     		ADD_TEST: [MessageHandler(Filters.text,add_test)],
     		DATE_CHOOSE: [CallbackQueryHandler(date_dispatcher),MessageHandler(Filters.document,get_challenge_from_file)],
     		NEW_TEST: [CallbackQueryHandler(new_test)]
