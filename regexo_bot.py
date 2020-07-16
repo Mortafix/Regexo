@@ -85,9 +85,10 @@ def create_list_keyboard(index,range,key,admin=False):
 	admin_line = [InlineKeyboardButton(text='{} Remove'.format(em('package')),callback_data='remove-'+key)] if admin else []
 	return InlineKeyboardMarkup([result,bottom_line,admin_line])
 
-def get_challenges(keywords=None,admin=False):
+def get_challenges(keywords=None,admin=False,difficulty=None,user=None):
 	date = 10**8 if admin else date_to_key()
 	if keywords: return [c for m,c in sorted([(search_index_from_keyword(k,keywords),int(k.decode())) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= date]) if m]
+	if difficulty: return sorted([int(k.decode()) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= date and REGEX.hget(k,'difficulty').decode() == difficulty and not REGEX.hget('u{}'.format(user),k)],reverse=True)
 	return sorted([int(k.decode()) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= date],reverse=True)
 
 def search_index_from_keyword(datekey,keywords):
@@ -208,15 +209,21 @@ def new_regex(update,context):
 
 def add_difficulty(update,context):
 	''''/newrex - Add difficulty'''
-	telegram_id = update.message.chat.id
-	date = update.message.text
-	try: date_key = date_to_key(date)
-	except ValueError: update.message.reply_text('{} Wrong date!\n\n{} Try again.\n\[dd-mm-yyyy]'.format(em('x'),em('date')),parse_mode='Markdown'); return ADD_DIFFICULTY
-	if challenge_exists(date_key): update.message.reply_text('{} Challenge already exists on this date.'.format(em('no_entry'))); return ConversationHandler.END
-	context.user_data.update({telegram_id:{'regex-date':date_key,'index-test':1}})
-	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} EASY'.format(em('heavy_plus_sign')),callback_data='difficulty-easy'),InlineKeyboardButton(text='{} MEDIUM'.format(em('x')),callback_data='difficulty-medium'),InlineKeyboardButton(text='{} HARD'.format(em('x')),callback_data='difficulty-hard')]])
-	update.message.reply_text('{} Select *difficulty*.\n'.format(em('page_facing_up')),reply_markup=reply_keyboard, parse_mode='Markdown')
-	return ADD_DESCRIPTION
+	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} EASY'.format(em('four_leaf_clover')),callback_data='difficulty-easy'),InlineKeyboardButton(text='{} MEDIUM'.format(em('zap')),callback_data='difficulty-medium'),InlineKeyboardButton(text='{} HARD'.format(em('fire')),callback_data='difficulty-hard')]])
+	if update.callback_query:
+		telegram_id = update.callback_query.message.chat.id
+		context.user_data.update({telegram_id:'difficulty'})
+		update.callback_query.edit_message_text('{} Select *difficulty*.\n'.format(em('dart')),reply_markup=reply_keyboard, parse_mode='Markdown')
+		return LIST_C
+	else:
+		telegram_id = update.message.chat.id
+		date = update.message.text
+		try: date_key = date_to_key(date)
+		except ValueError: update.message.reply_text('{} Wrong date!\n\n{} Try again.\n\[dd-mm-yyyy]'.format(em('x'),em('date')),parse_mode='Markdown'); return ADD_DIFFICULTY
+		if challenge_exists(date_key): update.message.reply_text('{} Challenge already exists on this date.'.format(em('no_entry'))); return ConversationHandler.END
+		context.user_data.update({telegram_id:{'regex-date':date_key,'index-test':1}})
+		update.message.reply_text('{} Select *difficulty*.\n'.format(em('dart')),reply_markup=reply_keyboard, parse_mode='Markdown')
+		return ADD_DESCRIPTION
 
 def add_description(update,context):
 	'''/newregex - Add description'''
@@ -260,10 +267,10 @@ def new_test(update,context):
 # LIST REGEX --------------------------------
 
 def list_request(update,context):
-	'''/newregex - Choose date'''
+	'''/challenges - Choose date'''
 	telegram_id = update.message.chat.id
 	are_you_alive(telegram_id,update.message.from_user)
-	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} Today'.format(em('pushpin')),callback_data='list-date-today'),InlineKeyboardButton(text='{} Another Date'.format(em('crystal_ball')),callback_data='list-date-another')],[InlineKeyboardButton('{} Random'.format(em('game_die')),callback_data='list-random')]])
+	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} Today'.format(em('pushpin')),callback_data='list-date-today'),InlineKeyboardButton(text='{} Another Date'.format(em('crystal_ball')),callback_data='list-date-another')],[InlineKeyboardButton('{} Difficulty'.format(em('dart')),callback_data='list-difficulty'),InlineKeyboardButton('{} Random'.format(em('game_die')),callback_data='list-random')]])
 	update.message.reply_text('{} Choose a *challenge* to play.'.format(em('date')),reply_markup=reply_keyboard,parse_mode='Markdown')
 	return DATE_CHOOSE
 
@@ -325,6 +332,26 @@ def list_regex(update,context):
 				msg = '{} All challenges played!'.format(em('100'))
 				ret = ConversationHandler.END
 			update.callback_query.edit_message_text(msg,reply_markup=reply_markup,parse_mode='Markdown')
+			return ret
+		# from DIFFICULTY
+		elif 'difficulty' in data:
+			query = update.callback_query
+			if query.data == 'difficulty-easy': difficulty = 'EASY' 
+			elif query.data == 'difficulty-medium': difficulty = 'MEDIUM'
+			elif query.data == 'difficulty-hard': difficulty = 'HARD'
+			regex_past = get_challenges(admin=are_you_admin(telegram_id),difficulty=difficulty,user=telegram_id)
+			list_range = list(range(0,len(regex_past)))
+			if regex_past:
+				idx = len(regex_past)-1
+				context.user_data.update({telegram_id:{'list-id':idx,'list-regex':regex_past,'list-range':list_range}})
+				reply_markup = create_list_keyboard(idx,list_range,regex_past[idx],admin=are_you_admin(telegram_id))
+				msg = print_challenge(regex_list=regex_past,index=idx,number=2,usr_id=telegram_id)
+				ret = LIST_C
+			else: 
+				reply_markup = None
+				msg = '{} All *{}* challenges played!'.format(em('100'),difficulty)
+				ret = ConversationHandler.END
+			query.edit_message_text(msg,reply_markup=reply_markup,parse_mode='Markdown')
 			return ret
 		# from InlineKeyboard (list)
 		else:	
@@ -457,8 +484,8 @@ def date_dispatcher(update,context):
 	query.answer()
 	if query.data == 'regex-date-today':
 		if challenge_exists(date_to_key()): query.edit_message_text('{} Challenge already exists on this date.'.format(em('no_entry'))); return ConversationHandler.END
-		reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} EASY'.format(em('heavy_plus_sign')),callback_data='difficulty-easy'),InlineKeyboardButton(text='{} MEDIUM'.format(em('x')),callback_data='difficulty-medium'),InlineKeyboardButton(text='{} HARD'.format(em('x')),callback_data='difficulty-hard')]])
-		query.edit_message_text('{} Select *difficulty*.\n'.format(em('page_facing_up')),reply_markup=reply_keyboard, parse_mode='Markdown')
+		reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} EASY'.format(em('four_leaf_clover')),callback_data='difficulty-easy'),InlineKeyboardButton(text='{} MEDIUM'.format(em('zap')),callback_data='difficulty-medium'),InlineKeyboardButton(text='{} HARD'.format(em('fire')),callback_data='difficulty-hard')]])
+		query.edit_message_text('{} Select *difficulty*.\n'.format(em('dart')),reply_markup=reply_keyboard, parse_mode='Markdown')
 		#query.edit_message_text('{} Insert *description*.\n(markdown available)'.format(em('page_facing_up')),parse_mode='Markdown')
 		context.user_data.update({telegram_id:{'regex-date':date_to_key(),'index-test':1}})
 		return ADD_DESCRIPTION
@@ -466,6 +493,7 @@ def date_dispatcher(update,context):
 	elif query.data == 'list-date-today': context.user_data.update({telegram_id:{'list-date':date_to_key()}}); return list_regex(update,context)
 	elif query.data == 'list-date-another': query.edit_message_text('{} Insert *date*.\n\[dd-mm-yyyy]'.format(em('date')),parse_mode='Markdown'); return LIST_M
 	elif query.data == 'list-random': context.user_data.update({telegram_id:'random'}); return list_regex(update,context)
+	elif query.data == 'list-difficulty': return add_difficulty(update,context)
 
 # MAIN ----------------------------------------------------------------------------------
 
