@@ -19,8 +19,8 @@ PORT = int(os.environ.get('PORT', 5000))
 TOKEN = '1178476105:AAEeuMbyRQ5blEM11V0xtqEkiMsDGhnikyU'
 ADD_TEST,NEW_TEST,ADD_DESCRIPTION,DATE_CHOOSE,LIST_C,LIST_M,PLAY,PLAY_DISPACTHER,ADD_DIFFICULTY = range(9)
 # Redis Setup
-REGEX = redis.from_url(os.environ.get("REDIS_URL"))
-#REGEX = redis.Redis(host='localhost', port=6379, db=0) # terminal debugging
+TERMINAL = True if os.environ.get('TERM_PROGRAM') else False
+REGEX = redis.Redis(host='localhost', port=6379, db=0) if TERMINAL else redis.from_url(os.environ.get("REDIS_URL"))
 
 #--------------------------------- Functions ------------------------------------------
 
@@ -130,7 +130,7 @@ def print_explicit_test(regex_matched,answer):
 
 def print_explicit_test_sub(substitution,answer):
 	res = substitution if substitution else ''
-	return '`Result    `*{}*\n`Expected ` *{}*'.format(res,answer)
+	return '`Result    `*{}*\n`Expected  `*{}*'.format(res,answer)
 
 def test_regex(regex,challenge_key):
 	substitution = None
@@ -162,30 +162,30 @@ def get_leaderboard(key):
 #--------------------------------- Utilities ------------------------------------------
 
 def error(update, context):
-    '''Log errors caused by updates.'''
-    logger.warning('Update "%s" caused error "%s"', update, context.error)
+	'''Log errors caused by updates.'''
+	logger.warning('Update "%s" caused error "%s"', update, context.error)
 
 #--------------------------------- Simple commands ------------------------------------
 
 def start(update, context):
-    '''Send start message. [command /start]'''
-    user = update.message.from_user
-    telegram_id = update.message.chat.id
-    db_name = update.message.from_user.username if update.message.from_user.username else user.first_name
-    REGEX.hset('u{}'.format(telegram_id),'username',db_name)
-    update.message.reply_text('Welcome {}!\nI\'m `Regexo`, your worst regular expression nightmare.\n\nUse /help to know how to survive.'.format(user.first_name),parse_mode='Markdown')
+	'''Send start message. [command /start]'''
+	user = update.message.from_user
+	telegram_id = update.message.chat.id
+	db_name = update.message.from_user.username if update.message.from_user.username else user.first_name
+	REGEX.hset('u{}'.format(telegram_id),'username',db_name)
+	update.message.reply_text('Welcome {}!\nI\'m `Regexo`, your worst regular expression nightmare.\n\nUse /help to know how to survive.'.format(user.first_name),parse_mode='Markdown')
 
 def help(update, context):
-    '''Send help message. [command /help]'''
-    update.message.reply_text(	'*Q*: _How the _*regex*_ works?_\n*A*: _You need to match everything the text said to you in the first group of the regex._\n\n'
-    							'*Q*: _Which _*commands*_ can I use?_\n*A*: _For now, you can use _/challenges_ to play or _/search_ to find a challenge by keywords._\n\n'
-    							'*Q*: _Where can I send my _*complaints*_?_\n*A*: _There, to _[Mortafix](https://t.me/mortafix)_!_',parse_mode='Markdown')
+	'''Send help message. [command /help]'''
+	update.message.reply_text(	'*Q*: _How the _*regex*_ works?_\n*A*: _You need to match everything the text said to you in the first group of the regex._\n\n'
+								'*Q*: _Which _*commands*_ can I use?_\n*A*: _For now, you can use _/challenges_ to play or _/search_ to find a challenge by keywords._\n\n'
+								'*Q*: _Where can I send my _*complaints*_?_\n*A*: _There, to _[Mortafix](https://t.me/mortafix)_!_',parse_mode='Markdown')
 
 def cancel(update, context):
-    '''User cancel conversation, exit gently'''
-    user = update.message.from_user
-    update.message.reply_text('Why *{}*? {}'.format(user.first_name,em('sob')),parse_mode='Markdown')
-    return ConversationHandler.END
+	'''User cancel conversation, exit gently'''
+	user = update.message.from_user
+	update.message.reply_text('Why *{}*? {}'.format(user.first_name,em('sob')),parse_mode='Markdown')
+	return ConversationHandler.END
 
 #--------------------------------- Handler --------------------------------------------
 
@@ -470,86 +470,87 @@ def date_dispatcher(update,context):
 # MAIN ----------------------------------------------------------------------------------
 
 def main():
-    '''Bot instance'''
-    pp = PicklePersistence(filename='rgx_persistence')
-    updater = Updater(TOKEN, persistence=pp, use_context=True)
-    dp = updater.dispatcher
+	'''Bot instance'''
+	pp = PicklePersistence(filename='rgx_persistence')
+	updater = Updater(TOKEN, persistence=pp, use_context=True)
+	dp = updater.dispatcher
 
-    # -----------------------------------------------------------------------
+	# -----------------------------------------------------------------------
  
-    # commands
-    cmd_start = CommandHandler("start", start)
-    cmd_help = CommandHandler("help", help)
-    cmd_debug = CommandHandler("debug",debug_redis)
+	# commands
+	cmd_start = CommandHandler("start", start)
+	cmd_help = CommandHandler("help", help)
+	cmd_debug = CommandHandler("debug",debug_redis)
 
-    # conversations
-    conv_new_regex = ConversationHandler(
-    	entry_points = [CommandHandler('regex',new_regex)],
-    	states = {
+	# conversations
+	conv_new_regex = ConversationHandler(
+		entry_points = [CommandHandler('regex',new_regex)],
+		states = {
 			ADD_DIFFICULTY: [MessageHandler(Filters.text,add_difficulty)],
-    		ADD_DESCRIPTION: [CallbackQueryHandler(add_description)],
-    		ADD_TEST: [MessageHandler(Filters.text,add_test)],
-    		DATE_CHOOSE: [CallbackQueryHandler(date_dispatcher),MessageHandler(Filters.document,get_challenge_from_file)],
-    		NEW_TEST: [CallbackQueryHandler(new_test)]
-    	},
-    	fallbacks=[CommandHandler('cancel',cancel)],
-    	name='login-conversation',
-    	persistent=True
-    	)
+			ADD_DESCRIPTION: [CallbackQueryHandler(add_description)],
+			ADD_TEST: [MessageHandler(Filters.text,add_test)],
+			DATE_CHOOSE: [CallbackQueryHandler(date_dispatcher),MessageHandler(Filters.document,get_challenge_from_file)],
+			NEW_TEST: [CallbackQueryHandler(new_test)]
+		},
+		fallbacks=[CommandHandler('cancel',cancel)],
+		name='login-conversation',
+		persistent=True
+		)
 
-    conv_list = ConversationHandler(
-    	entry_points = [CommandHandler("challenges",list_request)],
-    	states = {
-    		DATE_CHOOSE: [CallbackQueryHandler(date_dispatcher)],
-    		LIST_C: [CallbackQueryHandler(list_regex)],
-    		LIST_M: [MessageHandler(Filters.text,list_regex)],
-    		PLAY: [MessageHandler(Filters.text,play_challenge),CallbackQueryHandler(play_challenge)],
-    		PLAY_DISPACTHER: [CallbackQueryHandler(play_dispatcher)]
-    	},
-    	fallbacks = [CommandHandler("cancel",cancel)],
-    	name='list-conversation',
-    	persistent=True
-    	)
+	conv_list = ConversationHandler(
+		entry_points = [CommandHandler("challenges",list_request)],
+		states = {
+			DATE_CHOOSE: [CallbackQueryHandler(date_dispatcher)],
+			LIST_C: [CallbackQueryHandler(list_regex)],
+			LIST_M: [MessageHandler(Filters.text,list_regex)],
+			PLAY: [MessageHandler(Filters.text,play_challenge),CallbackQueryHandler(play_challenge)],
+			PLAY_DISPACTHER: [CallbackQueryHandler(play_dispatcher)]
+		},
+		fallbacks = [CommandHandler("cancel",cancel)],
+		name='list-conversation',
+		persistent=True
+		)
 
-    conv_search = ConversationHandler(
-    	entry_points = [CommandHandler("search",search_request)],
-    	states = {
-    		LIST_C: [CallbackQueryHandler(list_regex)],
-    		LIST_M: [MessageHandler(Filters.text,list_regex)],
-    		PLAY: [MessageHandler(Filters.text,play_challenge),CallbackQueryHandler(play_challenge)],
-    		PLAY_DISPACTHER: [CallbackQueryHandler(play_dispatcher)]
-    	},
-    	fallbacks = [CommandHandler("cancel",cancel)],
-    	name='search-conversation',
-    	persistent=True
-    	)
+	conv_search = ConversationHandler(
+		entry_points = [CommandHandler("search",search_request)],
+		states = {
+			LIST_C: [CallbackQueryHandler(list_regex)],
+			LIST_M: [MessageHandler(Filters.text,list_regex)],
+			PLAY: [MessageHandler(Filters.text,play_challenge),CallbackQueryHandler(play_challenge)],
+			PLAY_DISPACTHER: [CallbackQueryHandler(play_dispatcher)]
+		},
+		fallbacks = [CommandHandler("cancel",cancel)],
+		name='search-conversation',
+		persistent=True
+		)
 
-    # -----------------------------------------------------------------------
+	# -----------------------------------------------------------------------
 
-    # handlers - commands and conversations
-    dp.add_handler(conv_new_regex)
-    dp.add_handler(conv_list)
-    dp.add_handler(conv_search)
-    dp.add_handler(cmd_start)
-    dp.add_handler(cmd_help)
-    dp.add_handler(cmd_debug)
+	# handlers - commands and conversations
+	dp.add_handler(conv_new_regex)
+	dp.add_handler(conv_list)
+	dp.add_handler(conv_search)
+	dp.add_handler(cmd_start)
+	dp.add_handler(cmd_help)
+	dp.add_handler(cmd_debug)
 
-    # handlers - no command
-    dp.add_handler(MessageHandler(Filters.text,handle_text))
+	# handlers - no command
+	dp.add_handler(MessageHandler(Filters.text,handle_text))
 
-    # handlers - error
-    dp.add_error_handler(error)
+	# handlers - error
+	dp.add_error_handler(error)
 
-    # -----------------------------------------------------------------------
+	# ----------------------------------------------------------------------
 
-    # start the Bot on Heroku
-    #updater.start_polling() # terminal debugging
-    updater.start_webhook(listen="0.0.0.0",port=int(PORT),url_path=TOKEN)
-    updater.bot.setWebhook('https://regexo-bot.herokuapp.com/'+TOKEN)
-    print('Bot started!')
+	if TERMINAL:
+		updater.start_polling()
+	else:
+		updater.start_webhook(listen="0.0.0.0",port=int(PORT),url_path=TOKEN)
+		updater.bot.setWebhook('https://regexo-bot.herokuapp.com/'+TOKEN)
+	print('Bot started!')
 
-    # Run the bot until you press Ctrl-C
-    updater.idle()
+	# Run the bot until you press Ctrl-C
+	updater.idle()
 
 if __name__ == '__main__':
 	main()
