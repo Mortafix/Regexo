@@ -463,8 +463,8 @@ def get_challenge_from_file(update,context):
 	try: date_key = date_to_key(lines[0])
 	except ValueError: update.message.reply_text('{} Please check *date* format in file.\nMust be [dd-mm-yyy]'.format(em('no_entry')),parse_mode='Markdown'); return ConversationHandler.END
 	if challenge_exists(date_key): update.message.reply_text('{} Challenge already exists on this date.'.format(em('no_entry'))); return ConversationHandler.END
-	descr = lines[1]
-	difficulty = lines[2].upper()
+	difficulty = lines[1].upper()
+	descr = lines[2]
 	if difficulty not in ['EASY','MEDIUM','HARD']: update.message.reply_text('{} Invalid difficulty level. Must be *EASY*, *MEDIUM*, or *HARD*.'.format(em('no_entry')),parse_mode='Markdown'); return ConversationHandler.END
 	test = [l for l in lines[3:] if l]
 	if len(test) % 2 != 0: update.message.reply_text('{} Please check *tests*.\nMust be two lines for each test.'.format(em('no_entry')),parse_mode='Markdown'); return ConversationHandler.END
