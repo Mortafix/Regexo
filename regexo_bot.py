@@ -61,20 +61,29 @@ def print_challenge(regex_list=None,index=None,key=None,number=None,usr_id=None)
 	descr = REGEX.hget(key,'descr').decode()
 	difficulty = REGEX.hget(key,'difficulty').decode()
 	test = [REGEX.hget(key,k).decode().split('\n') for k in sorted(REGEX.hkeys(key)) if search(r'test',str(k))]
-	k = key
-	player_score = REGEX.hget('u{}'.format(usr_id),key)
-	player = '\n\n{} Played!\nPoints: *{}*\nRegex: `{}`'.format(em('tada'),player_score.decode().split('@@')[1],player_score.decode().split('@@')[0]) if player_score else ''
-	return '{} *{}*\n{}\n{} {}\n\n{}{}'.format(em('date'),key_to_date(str(k)),print_difficulty(difficulty),em('bell'),descr,print_tests(test,number),player)
+	return '{} *{}*\n{}\n{}\n\n{}{}'.format(em('date'),key_to_date(str(key)),print_difficulty(difficulty),descr,print_tests(test,number),print_player(usr_id,key))
+
+def print_player(user,key):
+	player_play = REGEX.hget('u{}'.format(user),key)
+	if player_play:
+		player_commit,player_score = player_play.decode().split('@@')
+		player_commit = player_commit.split('\n')
+		player_regex = player_commit[0]
+		player_sub = player_commit[1] if len(player_commit) > 1 else None
+		sub_string = '\nSubstitution: `{}`'.format(player_sub) if player_sub else ''
+		return '\n\n{} *Played*!\nPoints: *{}*\nRegex: `{}`{}'.format(em('tada'),player_score,player_regex,sub_string)
+	else:
+		return ''
 
 def print_difficulty(difficulty):
 	if difficulty == 'EASY': emj = em('four_leaf_clover')
-	elif difficulty == 'MEDIUM': emj = em('zap')
-	elif difficulty == 'HARD': emj = em('fire')
+	elif difficulty == 'MEDIUM': emj = em('maple_leaf')
+	elif difficulty == 'HARD': emj = em('rose')
 	return '{0} *{1}* {0}'.format(emj,difficulty)
 
 def print_tests(test_list,number):
 	dots = '\n...' if number and number < len(test_list) else ''
-	return '\n'.join(['`{}` {} `{}`'.format(s,em('arrow_forward'),t.replace('@@','')) for s,t in test_list[:number]])+dots
+	return '{0} *TEST* {0}\n{1}{2}'.format(em('construction'),'\n'.join(['`{}` {} `{}`'.format(s,em('arrow_forward'),t.replace('@@','')) for s,t in test_list[:number]]),dots)
 
 def create_list_keyboard(index,range,key,admin=False):
 	result,key = [],str(key) 
@@ -209,7 +218,7 @@ def new_regex(update,context):
 
 def add_difficulty(update,context):
 	''''/newrex - Add difficulty'''
-	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} EASY'.format(em('four_leaf_clover')),callback_data='difficulty-easy'),InlineKeyboardButton(text='{} MEDIUM'.format(em('zap')),callback_data='difficulty-medium'),InlineKeyboardButton(text='{} HARD'.format(em('fire')),callback_data='difficulty-hard')]])
+	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} EASY'.format(em('four_leaf_clover')),callback_data='difficulty-easy'),InlineKeyboardButton(text='{} MEDIUM'.format(em('maple_leaf')),callback_data='difficulty-medium'),InlineKeyboardButton(text='{} HARD'.format(em('rose')),callback_data='difficulty-hard')]])
 	if update.callback_query:
 		telegram_id = update.callback_query.message.chat.id
 		context.user_data.update({telegram_id:'difficulty'})
@@ -484,7 +493,7 @@ def date_dispatcher(update,context):
 	query.answer()
 	if query.data == 'regex-date-today':
 		if challenge_exists(date_to_key()): query.edit_message_text('{} Challenge already exists on this date.'.format(em('no_entry'))); return ConversationHandler.END
-		reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} EASY'.format(em('four_leaf_clover')),callback_data='difficulty-easy'),InlineKeyboardButton(text='{} MEDIUM'.format(em('zap')),callback_data='difficulty-medium'),InlineKeyboardButton(text='{} HARD'.format(em('fire')),callback_data='difficulty-hard')]])
+		reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} EASY'.format(em('four_leaf_clover')),callback_data='difficulty-easy'),InlineKeyboardButton(text='{} MEDIUM'.format(em('maple_leaf')),callback_data='difficulty-medium'),InlineKeyboardButton(text='{} HARD'.format(em('rose')),callback_data='difficulty-hard')]])
 		query.edit_message_text('{} Select *difficulty*.\n'.format(em('dart')),reply_markup=reply_keyboard, parse_mode='Markdown')
 		#query.edit_message_text('{} Insert *description*.\n(markdown available)'.format(em('page_facing_up')),parse_mode='Markdown')
 		context.user_data.update({telegram_id:{'regex-date':date_to_key(),'index-test':1}})
