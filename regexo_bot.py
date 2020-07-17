@@ -77,7 +77,7 @@ def print_player(user,key):
 
 def print_difficulty(difficulty):
 	if difficulty == 'EASY': emj = em('four_leaf_clover')
-	elif difficulty == 'MEDIUM': emj = em('maple_leaf')
+	elif difficulty == 'NORMAL': emj = em('maple_leaf')
 	elif difficulty == 'HARD': emj = em('rose')
 	return '{0} *{1}* {0}'.format(emj,difficulty)
 
@@ -218,7 +218,7 @@ def new_regex(update,context):
 
 def add_difficulty(update,context):
 	''''/newrex - Add difficulty'''
-	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} EASY'.format(em('four_leaf_clover')),callback_data='difficulty-easy'),InlineKeyboardButton(text='{} MEDIUM'.format(em('maple_leaf')),callback_data='difficulty-medium'),InlineKeyboardButton(text='{} HARD'.format(em('rose')),callback_data='difficulty-hard')]])
+	reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} EASY'.format(em('four_leaf_clover')),callback_data='difficulty-easy'),InlineKeyboardButton(text='{} NORMAL'.format(em('maple_leaf')),callback_data='difficulty-medium'),InlineKeyboardButton(text='{} HARD'.format(em('rose')),callback_data='difficulty-hard')]])
 	if update.callback_query:
 		telegram_id = update.callback_query.message.chat.id
 		context.user_data.update({telegram_id:'difficulty'})
@@ -240,7 +240,7 @@ def add_description(update,context):
 	telegram_id = query.message.chat.id
 	query.answer()
 	if query.data == 'difficulty-easy': difficulty = 'EASY' 
-	elif query.data == 'difficulty-medium': difficulty = 'MEDIUM'
+	elif query.data == 'difficulty-medium': difficulty = 'NORMAL'
 	elif query.data == 'difficulty-hard': difficulty = 'HARD' 
 	d_key = context.user_data.get(telegram_id).get('regex-date')
 	if d_key not in REGEX: REGEX.hset(d_key,'difficulty',difficulty)
@@ -346,7 +346,7 @@ def list_regex(update,context):
 		elif 'difficulty' in data:
 			query = update.callback_query
 			if query.data == 'difficulty-easy': difficulty = 'EASY' 
-			elif query.data == 'difficulty-medium': difficulty = 'MEDIUM'
+			elif query.data == 'difficulty-medium': difficulty = 'NORMAL'
 			elif query.data == 'difficulty-hard': difficulty = 'HARD'
 			regex_past = get_challenges(admin=are_you_admin(telegram_id),difficulty=difficulty,user=telegram_id)
 			list_range = list(range(0,len(regex_past)))
@@ -474,7 +474,7 @@ def get_challenge_from_file(update,context):
 	if challenge_exists(date_key): update.message.reply_text('{} Challenge already exists on this date.'.format(em('no_entry'))); return ConversationHandler.END
 	difficulty = lines[1].upper()
 	descr = lines[2]
-	if difficulty not in ['EASY','MEDIUM','HARD']: update.message.reply_text('{} Invalid difficulty level. Must be *EASY*, *MEDIUM*, or *HARD*.'.format(em('no_entry')),parse_mode='Markdown'); return ConversationHandler.END
+	if difficulty not in ['EASY','NORMAL','HARD']: update.message.reply_text('{} Invalid difficulty level. Must be *EASY*, *NORMAL*, or *HARD*.'.format(em('no_entry')),parse_mode='Markdown'); return ConversationHandler.END
 	test = [l for l in lines[3:] if l]
 	if len(test) % 2 != 0: update.message.reply_text('{} Please check *tests*.\nMust be two lines for each test.'.format(em('no_entry')),parse_mode='Markdown'); return ConversationHandler.END
 	REGEX.hset(date_key,'descr',descr)
@@ -493,7 +493,7 @@ def date_dispatcher(update,context):
 	query.answer()
 	if query.data == 'regex-date-today':
 		if challenge_exists(date_to_key()): query.edit_message_text('{} Challenge already exists on this date.'.format(em('no_entry'))); return ConversationHandler.END
-		reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} EASY'.format(em('four_leaf_clover')),callback_data='difficulty-easy'),InlineKeyboardButton(text='{} MEDIUM'.format(em('maple_leaf')),callback_data='difficulty-medium'),InlineKeyboardButton(text='{} HARD'.format(em('rose')),callback_data='difficulty-hard')]])
+		reply_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='{} EASY'.format(em('four_leaf_clover')),callback_data='difficulty-easy'),InlineKeyboardButton(text='{} NORMAL'.format(em('maple_leaf')),callback_data='difficulty-medium'),InlineKeyboardButton(text='{} HARD'.format(em('rose')),callback_data='difficulty-hard')]])
 		query.edit_message_text('{} Select *difficulty*.\n'.format(em('dart')),reply_markup=reply_keyboard, parse_mode='Markdown')
 		#query.edit_message_text('{} Insert *description*.\n(markdown available)'.format(em('page_facing_up')),parse_mode='Markdown')
 		context.user_data.update({telegram_id:{'regex-date':date_to_key(),'index-test':1}})
