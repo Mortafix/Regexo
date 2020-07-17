@@ -53,6 +53,7 @@ def are_you_alive(telegram_id,user):
 	if 'u{}'.format(telegram_id) not in get_users():
 		db_name = user.username if user.username else user.first_name
 		REGEX.hset('u{}'.format(telegram_id),'username',db_name)
+		REGEX.hset('u{}'.format(telegram_id),'show',1)
 
 # Playing function ---------------------------
 
@@ -94,11 +95,20 @@ def create_list_keyboard(index,range,key,admin=False):
 	admin_line = [InlineKeyboardButton(text='{} Remove'.format(em('package')),callback_data='remove-'+key)] if admin else []
 	return InlineKeyboardMarkup([result,bottom_line,admin_line])
 
-def get_challenges(keywords=None,admin=False,difficulty=None,user=None):
-	date = 10**8 if admin else date_to_key()
-	if keywords: return [c for m,c in sorted([(search_index_from_keyword(k,keywords),int(k.decode())) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= date]) if m]
-	if difficulty: return sorted([int(k.decode()) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= date and REGEX.hget(k,'difficulty').decode() == difficulty and not REGEX.hget('u{}'.format(user),k)],reverse=True)
-	return sorted([int(k.decode()) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= date],reverse=True)
+def is_challenge_played(user,key):
+	return REGEX.hget('u{}'.format(user),key)
+
+def is_challenge_to_show(user,key):
+	played = is_challenge_played(user,key)
+	return not (played and not int(REGEX.hget('u{}'.format(user),'show')))
+
+def get_challenges(user,keywords=None,difficulty=None,random=False):
+	date = 10**8 if are_you_admin(user) else date_to_key()
+	show = int(REGEX.hget('u{}'.format(user),'show'))
+	if keywords: return [c for m,c in sorted([(search_index_from_keyword(k,keywords),int(k.decode())) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= date and is_challenge_to_show(user,k)]) if m]
+	if difficulty: return sorted([int(k.decode()) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= date and REGEX.hget(k,'difficulty').decode() == difficulty and is_challenge_to_show(user,k)],reverse=True)
+	if random: challenges = [int(k.decode()) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= date and is_challenge_to_show(user,k)]; return [choice(challenges)] if challenges else []
+	return sorted([int(k.decode()) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= date and is_challenge_to_show(user,k)],reverse=True)
 
 def search_index_from_keyword(datekey,keywords):
 	descr = REGEX.hget(datekey,'descr')
@@ -110,11 +120,6 @@ def search_index_from_date(regex_list,key_date):
 def delete_challenge(key):
 	for k in REGEX.hkeys(key): REGEX.hdel(key,k)
 	for k in REGEX.keys(): REGEX.hdel(k,key)
-
-def random_challenges(user):
-	today = date_to_key()
-	challenges = [int(k.decode()) for k in REGEX.keys() if not search('u',str(k)) and int(k) <= today and not REGEX.hget('u{}'.format(user),k)]
-	return [choice(challenges)] if challenges else []
 
 # Testing functions ----------------
 
@@ -164,7 +169,7 @@ def test_regex(regex,challenge_key):
 # Profile functions ----------------
 
 def get_users():
-	return [k for k in REGEX.keys() if search('u',str(k))]
+	return [k.decode() for k in REGEX.keys() if search('u',str(k))]
 
 def get_leaderboard(key):
 	return '\n'.join(['{}: *{}*'.format(user,score) for user,score in sorted([(REGEX.hget(u,'username').decode(),float(REGEX.hget(u,key).decode().split('@@')[1])) for u in get_users() if REGEX.hget(u,key)],key=lambda x:x[1],reverse=True)])
@@ -183,12 +188,14 @@ def start(update, context):
 	telegram_id = update.message.chat.id
 	db_name = update.message.from_user.username if update.message.from_user.username else user.first_name
 	REGEX.hset('u{}'.format(telegram_id),'username',db_name)
+	REGEX.hset('u{}'.format(telegram_id),'show',1)
 	update.message.reply_text('Welcome {}!\nI\'m `Regexo`, your worst regular expression nightmare.\n\nUse /help to know how to survive.'.format(user.first_name),parse_mode='Markdown')
 
 def help(update, context):
 	'''Send help message. [command /help]'''
 	update.message.reply_text(	'*Q*: _How the _*regex*_ works?_\n*A*: _You need to match everything the text said to you in the first group of the regex._\n\n'
 								'*Q*: _Which _*commands*_ can I use?_\n*A*: _For now, you can use _/challenges_ to play or _/search_ to find a challenge by keywords._\n\n'
+								'*Q*: _Why can\'t I see the challenges I _*played*_?_\n*A*: _You can use _/togglePlayed_ to show/hide the played challenges._\n\n'
 								'*Q*: _Where can I send my _*complaints*_?_\n*A*: _There, to _[Mortafix](https://t.me/mortafix)_!_',parse_mode='Markdown')
 
 def cancel(update, context):
@@ -312,7 +319,7 @@ def list_regex(update,context):
 			update.callback_query.edit_message_text('{} Challenge remove correctly'.format(em('new_moon_with_face'))); return ConversationHandler.END
 		# from TODAY (date choose)
 		elif 'list-date' in data:
-			regex_past = get_challenges(admin=are_you_admin(telegram_id))
+			regex_past = get_challenges(telegram_id)
 			list_range = list(range(0,len(regex_past)))
 			if regex_past:
 				idx = search_index_from_date(regex_past,data.get('list-date'))
@@ -328,7 +335,7 @@ def list_regex(update,context):
 			return ret
 		# from RANDOM
 		elif 'random' in data:
-			regex_past = random_challenges(telegram_id)
+			regex_past = get_challenges(telegram_id,random=True)
 			list_range = list(range(0,len(regex_past)))
 			if regex_past:
 				idx = len(regex_past)-1
@@ -348,7 +355,7 @@ def list_regex(update,context):
 			if query.data == 'difficulty-easy': difficulty = 'EASY' 
 			elif query.data == 'difficulty-medium': difficulty = 'NORMAL'
 			elif query.data == 'difficulty-hard': difficulty = 'HARD'
-			regex_past = get_challenges(admin=are_you_admin(telegram_id),difficulty=difficulty,user=telegram_id)
+			regex_past = get_challenges(telegram_id,difficulty=difficulty)
 			list_range = list(range(0,len(regex_past)))
 			if regex_past:
 				idx = len(regex_past)-1
@@ -389,7 +396,7 @@ def list_regex(update,context):
 		telegram_id = update.message.chat.id
 		if context.user_data.get(telegram_id) == 'keywords':
 			keywords = update.message.text.split()
-			challenges = get_challenges(keywords=keywords,admin=are_you_admin(telegram_id))
+			challenges = get_challenges(telegram_id,keywords=keywords)
 			if challenges:
 				idx = len(challenges)-1
 				list_range = list(range(0,idx+1))
@@ -405,7 +412,7 @@ def list_regex(update,context):
 			date = update.message.text
 			try: date_key = date_to_key(date)
 			except ValueError: update.message.reply_text('{} Wrong date!\n\n{} Try again.\n\[dd-mm-yyyy]'.format(em('x'),em('date')),parse_mode='Markdown'); return LIST_M
-			regex_past = get_challenges(admin=are_you_admin(telegram_id))
+			regex_past = get_challenges(telegram_id)
 			list_range = list(range(0,len(regex_past)))
 			if regex_past:
 				idx = search_index_from_date(regex_past,date_key)
@@ -461,6 +468,15 @@ def search_request(update,context):
 	context.user_data.update({telegram_id:'keywords'})
 	update.message.reply_text('{} Insert *one or more keywords* to find a challenge.\n(separated by a space)'.format(em('key')),parse_mode='Markdown')
 	return LIST_M
+
+# TOGGLE PLAYED -----------------------------------------------
+
+def toggle_played(update,context):
+	telegram_id = update.message.chat.id
+	show = int(REGEX.hget('u{}'.format(telegram_id),'show'))
+	REGEX.hset('u{}'.format(telegram_id),'show',(0,1)[not show])
+	msg = '{} Toggle played *OFF*!\n_CLEANING CONTACTS TIME_\nNow, all the played challenges are hidden.'.format(em('see_no_evil')) if show else '{} Toggle played *ON*!\n_REFACTOR TIME_\nNow, you can see all the challenges, including those played.'.format(em('hear_no_evil'))
+	update.message.reply_text(msg,parse_mode='Markdown')
 
 # FILE --------------------------------------------------------
 
@@ -518,6 +534,7 @@ def main():
 	cmd_start = CommandHandler("start", start)
 	cmd_help = CommandHandler("help", help)
 	cmd_debug = CommandHandler("debug",debug_redis)
+	cmd_togglePlayed = CommandHandler("togglePlayed",toggle_played)
 
 	# conversations
 	conv_new_regex = ConversationHandler(
@@ -570,6 +587,7 @@ def main():
 	dp.add_handler(cmd_start)
 	dp.add_handler(cmd_help)
 	dp.add_handler(cmd_debug)
+	dp.add_handler(cmd_togglePlayed)
 
 	# handlers - no command
 	dp.add_handler(MessageHandler(Filters.text,handle_text))
