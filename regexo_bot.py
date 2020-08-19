@@ -16,7 +16,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 PORT = int(os.environ.get('PORT', 5000))
 # Config variables
-TOKEN = '1178476105:AAEeuMbyRQ5blEM11V0xtqEkiMsDGhnikyU'
+TOKEN = os.environ.get("TOKEN")
 ADD_TEST,NEW_TEST,ADD_DESCRIPTION,DATE_CHOOSE,LIST_C,LIST_M,PLAY,PLAY_DISPACTHER,ADD_DIFFICULTY = range(9)
 # Redis Setup
 TERMINAL = True if os.environ.get('TERM_PROGRAM') else False
